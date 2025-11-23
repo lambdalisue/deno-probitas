@@ -115,26 +115,23 @@ export function parseMaxFailures(
  * @requires --allow-read Permission to read template files
  */
 export async function readTemplate(filename: string): Promise<string> {
-  const templatePath = new URL(
-    `../assets/templates/${filename}`,
-    import.meta.url,
-  );
-  return await Deno.readTextFile(templatePath);
+  return await readAsset(`templates/${filename}`);
 }
 
 /**
  * Read asset file (help text, etc.)
  *
- * @param filename - Asset filename (e.g., "usage.txt", "usage-run.txt")
+ * @param path - Asset filename (e.g., "usage.txt", "usage-run.txt")
  * @returns Asset content
  * @requires --allow-read Permission to read asset files
  */
-export async function readAsset(filename: string): Promise<string> {
+export async function readAsset(path: string): Promise<string> {
   const assetPath = new URL(
-    `../assets/${filename}`,
+    `../assets/${path}`,
     import.meta.url,
   );
-  return await Deno.readTextFile(assetPath);
+  const resp = await fetch(assetPath);
+  return await resp.text();
 }
 
 /**
@@ -146,7 +143,8 @@ export async function readAsset(filename: string): Promise<string> {
 export async function getVersion(): Promise<string> {
   try {
     const denoJsonPath = new URL("../deno.jsonc", import.meta.url);
-    const content = await Deno.readTextFile(denoJsonPath);
+    const resp = await fetch(denoJsonPath);
+    const content = await resp.text();
     const config = parseJsonc(content) as { version?: string };
     return config.version || "0.1.0";
   } catch {
