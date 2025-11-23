@@ -1,5 +1,9 @@
 # ✅ Probitas
 
+[![JSR](https://jsr.io/badges/@lambdalisue/probitas)](https://jsr.io/@lambdalisue/probitas)
+[![Test](https://github.com/lambdalisue/deno-probitas/actions/workflows/test.yml/badge.svg)](https://github.com/lambdalisue/deno-probitas/actions/workflows/test.yml)
+[![codecov](https://codecov.io/github/lambdalisue/deno-probitas/graph/badge.svg?token=Yu0GPZAMv6)](https://codecov.io/github/lambdalisue/deno-probitas)
+
 Scenario-based testing & workflow execution framework for programmers.
 
 ## Features

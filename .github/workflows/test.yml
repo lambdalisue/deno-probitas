@@ -30,5 +30,15 @@ jobs:
         with:
           deno-version: ${{ env.DENO_VERSION }}
       - run: |
-          deno task test
+          deno task test:coverage
         timeout-minutes: 5
+
+      - run: |
+          deno task coverage --lcov > coverage.lcov
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.lcov
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: lambdalisue/deno-probitas
