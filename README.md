@@ -24,7 +24,7 @@ Scenario-based testing & workflow execution framework for programmers.
 ### Installation
 
 ```bash
-deno install -A -g -f -n probitas jsr:@lambdalisue/probitas/cli
+deno install -gfA -r -n probitas jsr:@lambdalisue/probitas/cli
 ```
 
 ### Initialize a Project
