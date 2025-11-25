@@ -223,12 +223,7 @@ const data2 = result.json; // Error!
    expect(result.status).toBe(200);
    ```
 
-2. Use verbosity flag:
-   ```bash
-   probitas run -d  # Debug mode
-   ```
-
-3. Run with `--fail-fast` to stop on first failure:
+2. Run with `--fail-fast` to stop on first failure:
    ```bash
    probitas run --fail-fast
    ```
@@ -386,12 +381,6 @@ If inference fails, add explicit type:
 ```
 
 ## Debugging Tips
-
-### Enable Debug Output
-
-```bash
-probitas run -d  # Debug verbosity
-```
 
 ### Run Single Scenario
 

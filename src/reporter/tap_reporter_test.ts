@@ -27,7 +27,6 @@ describe("TAPReporter - Additional Coverage", () => {
     it("should create TAPReporter with options", () => {
       const reporter = new TAPReporter({
         noColor: true,
-        verbosity: "normal",
       });
 
       assertEquals(reporter !== null, true);

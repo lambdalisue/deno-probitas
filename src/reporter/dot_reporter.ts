@@ -111,11 +111,8 @@ export class DotReporter extends BaseReporter {
         );
       }
     }
-
-    await super.onRunEnd(summary);
   }
 
-  // No-op methods for unneeded events
   override async onRunStart(
     _scenarios: readonly ScenarioDefinition[],
   ): Promise<void> {

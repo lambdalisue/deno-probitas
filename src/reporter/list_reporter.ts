@@ -176,8 +176,12 @@ export class ListReporter extends BaseReporter {
         this.theme.dim(`[${summary.duration.toFixed(3)}ms]`)
       }\n`,
     );
+  }
 
-    await super.onRunEnd(summary);
+  override async onRunStart(
+    _scenarios: readonly ScenarioDefinition[],
+  ): Promise<void> {
+    // no-op
   }
 
   // No-op methods for unneeded events

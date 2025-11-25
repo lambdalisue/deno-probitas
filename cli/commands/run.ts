@@ -31,7 +31,6 @@ export interface RunCommandOptions {
   maxConcurrency?: string | number;
   maxFailures?: string | number;
   noColor?: boolean;
-  verbosity?: "quiet" | "normal" | "verbose" | "debug";
   config?: string;
 }
 
@@ -99,16 +98,6 @@ export async function runCommand(
     const noColor = Deno.env.get("NO_COLOR") !== undefined;
     const configFile = Deno.env.get("PROBITAS_CONFIG");
 
-    // Determine verbosity level
-    let verbosity: "quiet" | "normal" | "verbose" | "debug" = "normal";
-    if (parsed.debug) {
-      verbosity = "debug";
-    } else if (parsed.verbose) {
-      verbosity = "verbose";
-    } else if (parsed.quiet) {
-      verbosity = "quiet";
-    }
-
     // Priority: CLI args > env vars > defaults
     const options: RunCommandOptions = {
       files: files.length > 0 ? files.map(String) : undefined,
@@ -118,7 +107,6 @@ export async function runCommand(
       maxConcurrency: parsed.sequential ? 1 : parsed["max-concurrency"],
       maxFailures: parsed["fail-fast"] ? 1 : parsed["max-failures"],
       noColor: parsed["no-color"] || noColor,
-      verbosity,
       config: parsed.config || configFile,
     };
 
@@ -163,7 +151,6 @@ export async function runCommand(
     // Build run options
     const reporterOptions: ReporterOptions = {
       noColor: options.noColor,
-      verbosity: options.verbosity ?? mergedConfig.verbosity ?? "normal",
     };
 
     let reporter: Reporter;

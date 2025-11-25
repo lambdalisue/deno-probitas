@@ -81,7 +81,6 @@ describe("utils", () => {
     it("passes options to ListReporter", () => {
       const reporter = resolveReporter("list", {
         noColor: true,
-        verbosity: "quiet",
       });
       assertInstanceOf(reporter, ListReporter);
     });
@@ -94,18 +93,17 @@ describe("utils", () => {
     it("passes options to DotReporter", () => {
       const reporter = resolveReporter("dot", {
         noColor: false,
-        verbosity: "verbose",
       });
       assertInstanceOf(reporter, DotReporter);
     });
 
     it("passes options to JSONReporter", () => {
-      const reporter = resolveReporter("json", { verbosity: "normal" });
+      const reporter = resolveReporter("json", {});
       assertInstanceOf(reporter, JSONReporter);
     });
 
     it("does not override Reporter instance with options", () => {
-      const customReporter = new ListReporter({ verbosity: "verbose" });
+      const customReporter = new ListReporter();
       const reporter = resolveReporter(customReporter, { noColor: true });
       assertEquals(reporter, customReporter);
     });

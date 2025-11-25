@@ -3,7 +3,6 @@
  *
  * Provides common functionality for all Reporter implementations:
  * - Output stream management
- * - Console suppression/restoration based on verbosity
  * - NO_COLOR environment variable support
  * - Color function selection
  *
@@ -25,21 +24,13 @@ import type {
 /**
  * Abstract base class for all reporters
  *
- * Provides common functionality for output management and console control.
+ * Provides common functionality for output management.
  * Subclasses must implement the abstract methods.
  */
 export abstract class BaseReporter implements Reporter {
   protected output: WritableStream;
   protected theme: Theme;
   protected options: ReporterOptions;
-
-  #originalConsole = {
-    error: console.error,
-    warn: console.warn,
-    log: console.log,
-    info: console.info,
-    debug: console.debug,
-  };
 
   #writeQueue: Promise<void> = Promise.resolve();
 
@@ -55,7 +46,6 @@ export abstract class BaseReporter implements Reporter {
 
     this.options = {
       output: this.output,
-      verbosity: options.verbosity ?? "normal",
       noColor: noColor,
     };
 
@@ -83,45 +73,6 @@ export abstract class BaseReporter implements Reporter {
   }
 
   /**
-   * Suppress console output based on verbosity level
-   *
-   * - "quiet": Suppress all console output
-   * - "normal": Suppress log/info/debug, allow error/warn
-   * - "verbose": Suppress debug, allow error/warn/log/info
-   * - "debug": Allow all console output
-   */
-  protected suppressConsole(): void {
-    const verbosity = this.options.verbosity ?? "normal";
-
-    switch (verbosity) {
-      case "quiet":
-        console.error =
-          console.warn =
-          console.log =
-          console.info =
-          console.debug =
-            () => {};
-        break;
-      case "normal":
-        console.log = console.info = console.debug = () => {};
-        break;
-      case "verbose":
-        console.debug = () => {};
-        break;
-      case "debug":
-        // Do not suppress anything
-        break;
-    }
-  }
-
-  /**
-   * Restore console output to original functions
-   */
-  protected restoreConsole(): void {
-    Object.assign(console, this.#originalConsole);
-  }
-
-  /**
    * Sanitize file paths in error stack traces to make them environment-independent
    *
    * Replaces absolute file:// URLs with relative paths to ensure snapshots
@@ -138,18 +89,6 @@ export abstract class BaseReporter implements Reporter {
       /file:\/\/\/[^\s]*\/(src\/[^\s:)]+)/g,
       "$1",
     );
-  }
-
-  /**
-   * Called when test run starts
-   *
-   * Subclasses should call super.onRunStart() to ensure console suppression
-   *
-   * @param _scenarios All scenarios to be run
-   */
-  onRunStart(_scenarios: readonly ScenarioDefinition[]): Promise<void> {
-    this.suppressConsole();
-    return Promise.resolve();
   }
 
   /**
@@ -195,14 +134,14 @@ export abstract class BaseReporter implements Reporter {
   ): void | Promise<void>;
 
   /**
-   * Called when test run completes
-   *
-   * Subclasses should call super.onRunEnd() to ensure console restoration
-   *
-   * @param _summary Summary of test execution
+   * Called when test run starts (to be implemented by subclass)
    */
-  onRunEnd(_summary: RunSummary): Promise<void> {
-    this.restoreConsole();
-    return Promise.resolve();
-  }
+  abstract onRunStart(
+    scenarios: readonly ScenarioDefinition[],
+  ): void | Promise<void>;
+
+  /**
+   * Called when test run completes (to be implemented by subclass)
+   */
+  abstract onRunEnd(summary: RunSummary): Promise<void>;
 }

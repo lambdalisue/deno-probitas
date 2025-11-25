@@ -10,6 +10,7 @@
 import { BaseReporter } from "./base_reporter.ts";
 import type {
   ReporterOptions,
+  RunSummary,
   ScenarioDefinition,
   ScenarioResult,
   StepDefinition,
@@ -41,8 +42,6 @@ export class TAPReporter extends BaseReporter {
   override async onRunStart(
     scenarios: readonly ScenarioDefinition[],
   ): Promise<void> {
-    await super.onRunStart(scenarios);
-
     // Calculate total number of steps
     this.#totalSteps = scenarios.reduce(
       (sum, s) => sum + s.steps.length,
@@ -144,6 +143,15 @@ export class TAPReporter extends BaseReporter {
     _scenario: ScenarioDefinition,
     _result: ScenarioResult,
   ): Promise<void> {
+    // no-op
+  }
+
+  /**
+   * Called when test run completes
+   *
+   * @param _summary The test run summary
+   */
+  override async onRunEnd(_summary: RunSummary): Promise<void> {
     // no-op
   }
 }

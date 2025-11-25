@@ -42,7 +42,6 @@ describe("config loader", () => {
 
       const result = await loadConfig(tempDir);
       assertEquals(result?.reporter, "list");
-      assertEquals(result?.verbosity, "normal");
     });
 
     it("loads probitas.config.js when exists", async () => {
@@ -62,7 +61,6 @@ describe("config loader", () => {
 
       const result = await loadConfig(tempDir);
       assertEquals(result?.reporter, "dot");
-      assertEquals(result?.verbosity, "verbose");
     });
 
     it("prioritizes .ts over .js when both exist", async () => {

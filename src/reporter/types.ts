@@ -48,16 +48,6 @@ export interface ReporterOptions {
   readonly output?: WritableStream;
 
   /**
-   * Verbosity level for console output suppression
-   *
-   * - "quiet": Suppress all output
-   * - "normal": Show error/warn only (default)
-   * - "verbose": Show error/warn/log/info
-   * - "debug": Show all including debug
-   */
-  readonly verbosity?: "quiet" | "normal" | "verbose" | "debug";
-
-  /**
    * Disable colored output
    *
    * Automatically set to true if NO_COLOR environment variable is present.

@@ -38,9 +38,6 @@ export interface ProbitasConfig
   /** Reporter (string name or Reporter instance) */
   readonly reporter?: string | Reporter;
 
-  /** Verbosity level */
-  readonly verbosity?: "quiet" | "normal" | "verbose" | "debug";
-
   /** Selectors for filtering scenarios (CLI-specific) */
   readonly selectors?: readonly string[];
 

@@ -38,7 +38,6 @@ export class JSONReporter extends BaseReporter {
   override async onRunStart(
     scenarios: readonly ScenarioDefinition[],
   ): Promise<void> {
-    await super.onRunStart(scenarios);
     await this.write(
       JSON.stringify({
         type: "runStart",
@@ -178,6 +177,5 @@ export class JSONReporter extends BaseReporter {
         },
       }) + "\n",
     );
-    await super.onRunEnd(summary);
   }
 }

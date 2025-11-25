@@ -90,15 +90,6 @@ interface ReporterOptions {
   output?: WritableStream;
 
   /**
-   * Output verbosity (mutually exclusive)
-   * - "quiet": Suppress all output
-   * - "normal": Show only console.error/warn (default)
-   * - "verbose": Show console.log/info as well
-   * - "debug": Show all including console.debug
-   */
-  verbosity?: "quiet" | "normal" | "verbose" | "debug";
-
-  /**
    * Disable colored output
    *
    * Defaults to false. Set to true to disable ANSI colors.
@@ -113,19 +104,6 @@ interface ReporterOptions {
   theme?: Theme;
 }
 ```
-
-**Console Control**:
-
-The BaseReporter class (which all built-in reporters extend) includes console
-control functionality. During test execution, reporters can suppress console
-output from test code and restore it after execution completes. This prevents
-test console output from interfering with reporter output formatting.
-
-- `suppressConsole()`: Temporarily captures console.log/error/warn/debug calls
-- `restoreConsole()`: Restores original console behavior
-
-The verbosity option controls which console methods are captured or displayed
-during test execution.
 
 ## Built-in Reporters
 

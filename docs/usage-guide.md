@@ -166,9 +166,6 @@ export default {
   // Default reporter
   reporter: "list",
 
-  // Default verbosity
-  verbosity: "normal",
-
   // Concurrency (undefined = unlimited)
   maxConcurrency: undefined,
 

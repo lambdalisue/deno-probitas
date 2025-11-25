@@ -575,7 +575,6 @@ import type { ProbitasConfig } from "probitas/cli";
 
 export default {
   reporter: "list",
-  verbosity: "normal",
 } satisfies ProbitasConfig;
 ```
 
@@ -637,8 +636,8 @@ my-project/
 
 #### `probitas.config.ts`
 
-Project Probitas configuration file. Contains minimal settings (reporter and
-verbosity) only. Other settings use default values.
+Project Probitas configuration file. Contains minimal settings (reporter only).
+Other settings use default values.
 
 #### `scenarios/example.scenario.ts`
 
@@ -720,7 +719,6 @@ fields:
 - `includes`: Include patterns (glob, files, directories, regular expressions)
 - `excludes`: Exclude patterns (glob, files, directories, regular expressions)
 - `reporter`: Default Reporter (string name or Reporter instance)
-- `verbosity`: Verbosity level
 - `maxConcurrency`: Maximum concurrent scenarios (0 or undefined = unlimited)
 - `maxFailures`: Maximum failures before stopping (0 or undefined = continue
   all)
@@ -749,9 +747,6 @@ export default {
 
   // Default Reporter
   reporter: "list",
-
-  // Verbosity level
-  verbosity: "normal",
 
   // Concurrency control
   maxConcurrency: 4, // Limit to 4 parallel scenarios
@@ -784,7 +779,6 @@ export default {
   includes: ["scenarios/**/*.scenario.js"],
   excludes: ["**/*.skip.scenario.js"],
   reporter: "dot",
-  verbosity: "normal",
 
   maxConcurrency: 4,
   // maxFailures: 3,
@@ -827,7 +821,6 @@ export default {
 
   // Reporter instance with custom configuration
   reporter: new ListReporter({
-    verbosity: "verbose",
     noColor: false,
   }),
 
@@ -969,8 +962,7 @@ probitas run  # Automatically disabled if NO_COLOR is set
 
 1. `--no-color` option (command-line)
 2. `NO_COLOR` environment variable
-3. Configuration file's `verbosity` setting
-4. Default (color enabled)
+3. Default (color enabled)
 
 ### Custom Reporters
 
@@ -1051,7 +1043,6 @@ export default {
   includes: ["scenarios/**/*.scenario.ts"],
   excludes: [],
   reporter: "list",
-  verbosity: "normal",
 
   maxConcurrency: 5, // Limit parallel execution to 5 scenarios
   maxFailures: 3, // Stop after 3 failures
