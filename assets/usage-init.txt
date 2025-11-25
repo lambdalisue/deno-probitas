@@ -11,6 +11,11 @@ Options:
   -h, --help     Show help message
   --force        Overwrite existing files
 
+Global Options:
+  -q, --quiet    Suppress console.log/warn/info/debug (show errors only)
+  -v, --verbose  Allow console.log/info/warn (suppress debug only)
+  -d, --debug    Allow all console output (no suppression)
+
 Examples:
   probitas init           Initialize new project
   probitas init --force   Overwrite existing files

@@ -17,10 +17,12 @@ Options:
   --max-failures <n>        Stop after N failures
   -f, --fail-fast           Stop on first failure (alias for --max-failures=1)
   --config <path>           Path to config file
-  -q, --quiet               Quiet output (errors only)
-  -v, --verbose             Verbose output
-  -d, --debug               Debug output (maximum detail)
   --no-color                Disable colored output
+
+Global Options:
+  -q, --quiet    Suppress console.log/warn/info/debug (show errors only)
+  -v, --verbose  Allow console.log/info/warn (suppress debug only)
+  -d, --debug    Allow all console output (no suppression)
 
 Selector Format:
   [type:]value
@@ -64,7 +66,7 @@ Examples:
   probitas run --max-failures 1             Stop on first failure
   probitas run -f                           Stop on first failure (alias)
 
-  # Output control
+  # Output control (global options)
   probitas run -v                           Verbose output
   probitas run --verbose                    Verbose output (same as -v)
   probitas run -q                           Quiet output

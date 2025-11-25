@@ -9,6 +9,11 @@ Options:
   --json                  Output in JSON format
   --config <path>         Path to config file
 
+Global Options:
+  -q, --quiet    Suppress console.log/warn/info/debug (show errors only)
+  -v, --verbose  Allow console.log/info/warn (suppress debug only)
+  -d, --debug    Allow all console output (no suppression)
+
 Selector Format:
   [type:]value
 

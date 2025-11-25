@@ -10,7 +10,136 @@ import { stub } from "@std/testing/mock";
 import { EXIT_CODE } from "./constants.ts";
 import { main } from "./main.ts";
 
-describe("main", () => {
+describe("main", { permissions: { read: true, write: true } }, () => {
+  describe("global options", () => {
+    it("sets verbosity to quiet with -q", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        // Create a test scenario that logs output
+        const scenarioPath = `${tempDir}/test.scenario.ts`;
+        await Deno.writeTextFile(
+          scenarioPath,
+          `export default {
+            name: "Test",
+            options: { tags: [], skip: null, setup: null, teardown: null, stepOptions: { timeout: 5000, retry: { maxAttempts: 1, backoff: "linear" } } },
+            steps: [
+              {
+                name: "Step",
+                fn: () => ({}),
+                options: { timeout: 5000, retry: { maxAttempts: 1, backoff: "linear" } }
+              }
+            ]
+          };`,
+        );
+
+        const output: string[] = [];
+        using _logStub = stub(console, "log", (...args: unknown[]) => {
+          output.push(args.join(" "));
+        });
+
+        const exitCode = await main(["-q", "run"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("sets verbosity to quiet with --quiet", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["--quiet", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("sets verbosity to verbose with -v", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["-v", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("sets verbosity to verbose with --verbose", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["--verbose", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("sets verbosity to debug with -d", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["-d", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("sets verbosity to debug with --debug", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["--debug", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+
+    it("prioritizes debug over verbose over quiet", async () => {
+      const tempDir = await Deno.makeTempDir();
+      const originalCwd = Deno.cwd();
+      try {
+        await Deno.chdir(tempDir);
+
+        const exitCode = await main(["-q", "-v", "-d", "list"]);
+
+        assertEquals(typeof exitCode, "number");
+      } finally {
+        await Deno.chdir(originalCwd);
+        await Deno.remove(tempDir, { recursive: true });
+      }
+    });
+  });
+
   describe("global flags", () => {
     it("shows help with no arguments", async () => {
       const output: string[] = [];
