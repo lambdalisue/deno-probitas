@@ -615,7 +615,7 @@ describe("list command", () => {
     });
   });
 
-  describe("selector and exclude functionality", () => {
+  describe("selector functionality with negation", () => {
     it("applies CLI selectors over config selectors", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
@@ -675,7 +675,7 @@ describe("list command", () => {
       assertEquals(outputText.includes("Default Test"), false);
     });
 
-    it("applies CLI excludes over config excludeSelectors", async () => {
+    it("applies negation operator to exclude selectors", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -687,7 +687,6 @@ describe("list command", () => {
         outdent`
           export default {
             includes: ["*.scenario.ts"],
-            excludeSelectors: ["tag:skip"],
             reporter: "list",
             verbosity: "normal",
           };
@@ -730,7 +729,7 @@ describe("list command", () => {
         output.push(args.join(" "));
       });
 
-      const exitCode = await listCommand(["-x", "tag:exclude"], tempDir);
+      const exitCode = await listCommand(["-s", "!tag:exclude"], tempDir);
 
       assertEquals(exitCode, EXIT_CODE.SUCCESS);
       const outputText = output.join("\n");

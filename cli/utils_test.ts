@@ -15,14 +15,13 @@ import type { ScenarioDefinition } from "../src/runner/types.ts";
 import {
   applySelectors,
   getVersion,
-  matchesSelector,
   parseMaxConcurrency,
   parseMaxFailures,
-  parseSelector,
   readAsset,
   readTemplate,
   resolveReporter,
 } from "./utils.ts";
+import { parseSelector } from "./types.ts";
 import {
   DotReporter,
   JSONReporter,
@@ -288,8 +287,10 @@ describe("utils", () => {
   const createScenario = (
     name: string,
     tags: string[] = [],
+    filePath: string = "example.scenario.ts",
   ): ScenarioDefinition => ({
     name,
+    location: { file: filePath, line: 1 },
     options: {
       tags,
       skip: null,
@@ -304,90 +305,138 @@ describe("utils", () => {
   });
 
   describe("parseSelector", () => {
-    it("parses tag selector", () => {
-      const selectors = parseSelector("tag:api");
-      assertEquals(selectors.length, 1);
-      assertEquals(selectors[0].type, "tag");
-      assertEquals(selectors[0].value instanceof RegExp, true);
+    it("parses tag selector without negation", () => {
+      const selector = parseSelector("tag:api");
+      assertEquals(selector.type, "tag");
+      assertEquals(selector.value, "api");
+      assertEquals(selector.negated, false);
     });
 
-    it("parses name selector without type prefix", () => {
-      const selectors = parseSelector("login");
-      assertEquals(selectors.length, 1);
-      assertEquals(selectors[0].type, "name");
-      assertEquals(selectors[0].value instanceof RegExp, true);
+    it("parses name selector without negation", () => {
+      const selector = parseSelector("name:login");
+      assertEquals(selector.type, "name");
+      assertEquals(selector.value, "login");
+      assertEquals(selector.negated, false);
     });
 
-    it("parses multiple selectors with comma", () => {
-      const selectors = parseSelector("tag:api,name:User");
-      assertEquals(selectors.length, 2);
-      assertEquals(selectors[0].type, "tag");
-      assertEquals(selectors[1].type, "name");
+    it("parses file selector without negation", () => {
+      const selector = parseSelector("file:auth/");
+      assertEquals(selector.type, "file");
+      assertEquals(selector.value, "auth/");
+      assertEquals(selector.negated, false);
     });
 
-    it("throws error for invalid selector type", () => {
-      assertThrows(
-        () => parseSelector("invalid:value"),
-        Error,
-        "Invalid selector type: invalid",
-      );
-    });
-  });
-
-  describe("matchesSelector", () => {
-    it("matches tag selector", () => {
-      const scenario = createScenario("Test", ["api", "smoke"]);
-      const selector = { type: "tag" as const, value: /api/i };
-      assertEquals(matchesSelector(scenario, selector), true);
+    it("parses selector with ! negation", () => {
+      const selector = parseSelector("!tag:slow");
+      assertEquals(selector.type, "tag");
+      assertEquals(selector.value, "slow");
+      assertEquals(selector.negated, true);
     });
 
-    it("does not match tag selector when tag is absent", () => {
-      const scenario = createScenario("Test", ["unit"]);
-      const selector = { type: "tag" as const, value: /api/i };
-      assertEquals(matchesSelector(scenario, selector), false);
+    it("handles whitespace around !", () => {
+      const selector = parseSelector("! tag:slow");
+      assertEquals(selector.type, "tag");
+      assertEquals(selector.value, "slow");
+      assertEquals(selector.negated, true);
     });
 
-    it("matches name selector", () => {
-      const scenario = createScenario("Login Test");
-      const selector = { type: "name" as const, value: /Login/i };
-      assertEquals(matchesSelector(scenario, selector), true);
+    it("defaults to name type when no type specified", () => {
+      const selector = parseSelector("wip");
+      assertEquals(selector.type, "name");
+      assertEquals(selector.value, "wip");
+      assertEquals(selector.negated, false);
     });
 
-    it("does not match name selector when name differs", () => {
-      const scenario = createScenario("Logout Test");
-      const selector = { type: "name" as const, value: /Login/i };
-      assertEquals(matchesSelector(scenario, selector), false);
-    });
-
-    it("matches tag selector case-insensitively", () => {
-      const scenario = createScenario("Test", ["API", "Smoke"]);
-      const selector = { type: "tag" as const, value: /api/i };
-      assertEquals(matchesSelector(scenario, selector), true);
-    });
-
-    it("matches name selector case-insensitively", () => {
-      const scenario = createScenario("LOGIN Test");
-      const selector = { type: "name" as const, value: /login/i };
-      assertEquals(matchesSelector(scenario, selector), true);
+    it("handles ! prefix with default type", () => {
+      const selector = parseSelector("!wip");
+      assertEquals(selector.type, "name");
+      assertEquals(selector.value, "wip");
+      assertEquals(selector.negated, true);
     });
   });
 
-  describe("applySelectors", () => {
+  describe("applySelectors with negation", () => {
     const scenarios = [
-      createScenario("Login Test", ["api", "auth"]),
-      createScenario("Logout Test", ["api"]),
-      createScenario("User API Test", ["api", "user"]),
-      createScenario("Smoke Test", ["smoke"]),
+      createScenario("Login Test", ["api", "auth"], "auth.scenario.ts"),
+      createScenario("Logout Test", ["api"], "auth.scenario.ts"),
+      createScenario("User API Test", ["api", "user"], "user.scenario.ts"),
+      createScenario("Smoke Test", ["smoke"], "smoke.scenario.ts"),
+      createScenario("Slow Test", ["api", "slow"], "perf.scenario.ts"),
     ];
 
+    describe("simple negation", () => {
+      it("filters out scenarios with negated tag", () => {
+        const result = applySelectors(scenarios, ["!tag:slow"]);
+        assertEquals(result.length, 4);
+        assertEquals(
+          result.map((s) => s.name).sort(),
+          ["Login Test", "Logout Test", "Smoke Test", "User API Test"],
+        );
+      });
+
+      it("filters out scenarios with negated name", () => {
+        const result = applySelectors(scenarios, ["!wip"]);
+        assertEquals(result.length, 5);
+      });
+
+      it("filters out scenarios with negated file", () => {
+        const result = applySelectors(scenarios, ["!file:perf"]);
+        assertEquals(result.length, 4);
+        assertEquals(
+          result.map((s) => s.name).sort(),
+          ["Login Test", "Logout Test", "Smoke Test", "User API Test"],
+        );
+      });
+    });
+
+    describe("combined conditions", () => {
+      it("applies AND condition with negation: tag:api,!tag:slow", () => {
+        const result = applySelectors(scenarios, ["tag:api,!tag:slow"]);
+        assertEquals(result.length, 3);
+        assertEquals(
+          result.map((s) => s.name).sort(),
+          ["Login Test", "Logout Test", "User API Test"],
+        );
+      });
+
+      it("applies OR condition with negation: !tag:skip -s !tag:wip", () => {
+        const result = applySelectors(scenarios, ["!tag:skip", "!tag:wip"]);
+        assertEquals(result.length, 5);
+      });
+
+      it("applies complex condition: tag:api,!tag:slow,User", () => {
+        const result = applySelectors(scenarios, ["tag:api,!tag:slow,User"]);
+        assertEquals(result.length, 1);
+        assertEquals(result[0].name, "User API Test");
+      });
+    });
+
+    describe("edge cases", () => {
+      it("handles double negation (!!tag:smoke) as positive", () => {
+        const result = applySelectors(scenarios, ["!!tag:smoke"]);
+        assertEquals(result.length, 1);
+        assertEquals(result[0].name, "Smoke Test");
+      });
+
+      it("handles empty selector list", () => {
+        const result = applySelectors(scenarios, []);
+        assertEquals(result.length, 5);
+      });
+
+      it("returns all scenarios for selector that matches all with negation check", () => {
+        const result = applySelectors(scenarios, ["!nonexistent"]);
+        assertEquals(result.length, 5);
+      });
+    });
+
     it("applies single tag selector (OR)", () => {
-      const result = applySelectors(scenarios, ["tag:smoke"], []);
+      const result = applySelectors(scenarios, ["tag:smoke"]);
       assertEquals(result.length, 1);
       assertEquals(result[0].name, "Smoke Test");
     });
 
     it("applies multiple tag selectors (OR)", () => {
-      const result = applySelectors(scenarios, ["tag:auth", "tag:smoke"], []);
+      const result = applySelectors(scenarios, ["tag:auth", "tag:smoke"]);
       assertEquals(result.length, 2);
       assertEquals(result.map((s) => s.name).sort(), [
         "Login Test",
@@ -396,43 +445,20 @@ describe("utils", () => {
     });
 
     it("applies combined selectors (AND within selector)", () => {
-      const result = applySelectors(scenarios, ["tag:api,tag:auth"], []);
+      const result = applySelectors(scenarios, ["tag:api,tag:auth"]);
       assertEquals(result.length, 1);
       assertEquals(result[0].name, "Login Test");
     });
 
     it("applies name selector", () => {
-      const result = applySelectors(scenarios, ["User"], []);
+      const result = applySelectors(scenarios, ["User"]);
       assertEquals(result.length, 1);
       assertEquals(result[0].name, "User API Test");
     });
 
-    it("applies exclude selector", () => {
-      const result = applySelectors(scenarios, ["tag:api"], ["tag:auth"]);
-      assertEquals(result.length, 2);
-      assertEquals(result.map((s) => s.name).sort(), [
-        "Logout Test",
-        "User API Test",
-      ]);
-    });
-
-    it("applies both select and exclude", () => {
-      const result = applySelectors(scenarios, ["tag:api"], ["Logout"]);
-      assertEquals(result.length, 2);
-      assertEquals(result.map((s) => s.name).sort(), [
-        "Login Test",
-        "User API Test",
-      ]);
-    });
-
     it("returns all scenarios when no selectors", () => {
-      const result = applySelectors(scenarios, [], []);
-      assertEquals(result.length, 4);
-    });
-
-    it("applies exclude only", () => {
-      const result = applySelectors(scenarios, [], ["tag:smoke"]);
-      assertEquals(result.length, 3);
+      const result = applySelectors(scenarios, []);
+      assertEquals(result.length, 5);
     });
   });
 });

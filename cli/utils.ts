@@ -12,7 +12,8 @@ import {
 } from "../src/reporter/mod.ts";
 import type { ReporterOptions } from "../src/reporter/types.ts";
 import type { Reporter, ScenarioDefinition } from "../src/runner/types.ts";
-import type { Selector, SelectorType } from "./types.ts";
+import { parseSelector } from "./types.ts";
+import type { Selector } from "./types.ts";
 
 /**
  * Resolve reporter by name or return Reporter instance
@@ -145,121 +146,79 @@ export function getVersion(): string {
 }
 
 /**
- * Parse a selector string into an array of Selector objects
- *
- * @param input - Selector string (e.g., "tag:api", "login", "tag:api,name:User")
- * @returns Array of Selector objects
- *
- * @example
- * parseSelector("tag:api") // [{ type: "tag", value: /api/ }]
- * parseSelector("login") // [{ type: "name", value: /login/ }]
- * parseSelector("tag:api,name:User") // [{ type: "tag", value: /api/ }, { type: "name", value: /User/ }]
- */
-export function parseSelector(input: string): Selector[] {
-  const parts = input.split(",").map((s) => s.trim()).filter((s) =>
-    s.length > 0
-  );
-
-  return parts.map((part) => {
-    if (part.includes(":")) {
-      const colonIndex = part.indexOf(":");
-      const type = part.slice(0, colonIndex) as SelectorType;
-      const value = part.slice(colonIndex + 1);
-
-      if (type !== "tag" && type !== "name") {
-        throw new Error(
-          `Invalid selector type: ${type}. Must be "tag" or "name".`,
-        );
-      }
-
-      return {
-        type,
-        value: new RegExp(value, "i"), // Case-insensitive
-      };
-    } else {
-      // Default to "name" type
-      return {
-        type: "name" as SelectorType,
-        value: new RegExp(part, "i"), // Case-insensitive
-      };
-    }
-  });
-}
-
-/**
  * Check if a scenario matches a single selector
  *
  * @param scenario - Scenario definition to check
  * @param selector - Selector to match against
  * @returns True if the scenario matches the selector
  */
-export function matchesSelector(
+function matchSelector(
   scenario: ScenarioDefinition,
   selector: Selector,
 ): boolean {
-  const pattern = selector.value instanceof RegExp
-    ? selector.value
-    : new RegExp(selector.value);
+  const value = selector.value.toLowerCase();
 
-  if (selector.type === "tag") {
-    return scenario.options.tags.some((tag) => pattern.test(tag));
-  } else if (selector.type === "name") {
-    return pattern.test(scenario.name);
+  switch (selector.type) {
+    case "tag":
+      return scenario.options.tags.some((tag) =>
+        tag.toLowerCase().includes(value)
+      );
+
+    case "name":
+      return scenario.name.toLowerCase().includes(value);
+
+    case "file":
+      return scenario.location?.file?.toLowerCase().includes(value) || false;
+
+    default:
+      return false;
   }
-
-  return false;
 }
 
 /**
- * Apply selectors to scenarios with AND/OR logic
+ * Apply selectors to filter scenarios
  *
- * @param scenarios - All scenarios to filter
- * @param selectorInputs - Array of selector strings (OR between strings, AND within strings)
- * @param excludeInputs - Array of exclude selector strings (OR between strings, AND within strings)
- * @returns Filtered scenarios
+ * Selector logic:
+ * - Multiple selector strings: OR condition
+ * - Comma-separated selectors: AND condition
+ * - ! prefix: NOT condition
+ *
+ * @param scenarios - Scenario list
+ * @param selectorStrings - Array of selector strings
+ * @returns Filtered scenario list
  *
  * @example
  * // Select scenarios with "api" OR "db" tag
- * applySelectors(scenarios, ["tag:api", "tag:db"], [])
+ * applySelectors(scenarios, ["tag:api", "tag:db"])
  *
  * // Select scenarios with "api" AND "critical" tag
- * applySelectors(scenarios, ["tag:api,tag:critical"], [])
+ * applySelectors(scenarios, ["tag:api,tag:critical"])
  *
  * // Select "api" OR "db" tag, excluding "slow" tag
- * applySelectors(scenarios, ["tag:api", "tag:db"], ["tag:slow"])
+ * applySelectors(scenarios, ["tag:api,!tag:slow", "tag:db,!tag:slow"])
  */
 export function applySelectors(
   scenarios: ScenarioDefinition[],
-  selectorInputs: readonly string[],
-  excludeInputs: readonly string[],
+  selectorStrings: readonly string[],
 ): ScenarioDefinition[] {
-  let result = scenarios;
-
-  // Apply select filters (OR between selector strings, AND within each string)
-  if (selectorInputs.length > 0) {
-    result = result.filter((scenario) => {
-      return selectorInputs.some((input) => {
-        const selectors = parseSelector(input);
-        // All selectors within one input must match (AND)
-        return selectors.every((selector) =>
-          matchesSelector(scenario, selector)
-        );
-      });
-    });
+  if (selectorStrings.length === 0) {
+    return scenarios;
   }
 
-  // Apply exclude filters (OR between exclude strings, AND within each string)
-  if (excludeInputs.length > 0) {
-    result = result.filter((scenario) => {
-      return !excludeInputs.some((input) => {
-        const selectors = parseSelector(input);
-        // All selectors within one input must match (AND)
-        return selectors.every((selector) =>
-          matchesSelector(scenario, selector)
-        );
+  return scenarios.filter((scenario) => {
+    // OR condition: true if matches any selector string
+    return selectorStrings.some((selectorString) => {
+      // Split by comma to get AND conditions
+      const andSelectors = selectorString
+        .split(",")
+        .map((s) => parseSelector(s.trim()));
+
+      // AND condition: must match all selectors
+      return andSelectors.every((selector) => {
+        const matches = matchSelector(scenario, selector);
+        // Apply negation operator
+        return selector.negated ? !matches : matches;
       });
     });
-  }
-
-  return result;
+  });
 }

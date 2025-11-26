@@ -205,71 +205,73 @@ probitas run "scenarios/**/*.test.ts"
 probitas run "unit/**/*.ts" "integration/**/*.ts"
 ```
 
-##### `--select <selector>` / `-s`
+##### `--selector <selector>` / `-s`
 
 Selects scenarios based on tag or name criteria. Can be specified multiple
 times.
 
-**Selector Format**: `[type:]value`
+**Selector Format**: `[!][type:]value`
 
-- `type`: `tag` or `name` (defaults to `name` if omitted)
-- `value`: Value to match (supports regular expressions, case-insensitive)
+- `!`: Negation prefix (optional) - excludes matching scenarios
+- `type`: `tag`, `name`, or `file` (defaults to `name` if omitted)
+- `value`: Value to match (case-insensitive substring matching)
 
 ```bash
 # Select scenarios with "api" tag
-probitas run --select tag:api
+probitas run --selector tag:api
 probitas run -s tag:api
 
 # Select scenarios by name
-probitas run --select "login"
+probitas run --selector "login"
 probitas run -s "Login"
 
+# Exclude scenarios using negation operator
+probitas run --selector "!tag:slow"
+probitas run -s "!wip"
+
 # Multiple selectors (OR logic - matches any selector)
-probitas run --select tag:api --select tag:integration
+probitas run --selector tag:api --selector tag:integration
 # => Scenarios with "api" OR "integration" tag
 
 # Multiple conditions in one selector (AND logic - comma-separated)
-probitas run --select "tag:api,tag:critical"
+probitas run --selector "tag:api,tag:critical"
 # => Scenarios with "api" AND "critical" tags
 
+# Negation with AND conditions
+probitas run --selector "tag:api,!tag:slow"
+# => Scenarios with "api" tag but NOT "slow" tag
+
 # Mix types in one selector
-probitas run --select "tag:api,name:User"
+probitas run --selector "tag:api,name:User"
 # => Scenarios with "api" tag AND name containing "User"
+
+# File path matching
+probitas run --selector "file:auth/"
+# => Scenarios in auth/ directory
 ```
 
 **Selection Logic**:
 
-- Multiple `--select` flags: OR logic (matches any selector)
+- Multiple `--selector` flags: OR logic (matches any selector)
 - Comma-separated within one selector: AND logic (must match all conditions)
-- When omitted: All scenarios are selected (can be further filtered with
-  `--exclude`)
+- `!` prefix: NOT logic (excludes matching scenarios)
+- When omitted: All scenarios are selected
 
-##### `--exclude <selector>` / `-x`
+See [Selector Syntax](./selector.md) for detailed information.
 
-Excludes scenarios based on tag or name criteria. Can be specified multiple
-times.
-
-**Selector Format**: `[type:]value` (same as `--select`)
+Note: The `-x/--exclude` option has been removed. Use the negation operator `!`
+in selectors instead:
 
 ```bash
-# Exclude scenarios with "wip" tag
-probitas run --exclude tag:wip
-probitas run -x tag:wip
+# Old way (deprecated)
+# probitas run -s tag:api -x tag:slow
 
-# Exclude scenarios by name pattern
-probitas run --exclude "slow"
-probitas run -x ".*Integration.*"
+# New way (recommended)
+probitas run -s "tag:api,!tag:slow"
 
-# Multiple exclusions (OR logic - excludes if matches any)
-probitas run --exclude tag:wip --exclude tag:slow
-# => Excludes scenarios with "wip" OR "slow" tag
+# Exclude all scenarios with a specific tag
+probitas run -s "!tag:wip"
 ```
-
-**Exclusion Logic**:
-
-- Multiple `--exclude` flags: OR logic (excludes if matches any)
-- Applied after selection
-- Can combine with `--select` for complex filtering
 
 ##### `--reporter <reporter>`
 
@@ -425,62 +427,63 @@ probitas run --config ./config/test.config.js
 
 #### Filtering
 
-Scenarios can be filtered using selector-based command-line options.
+Scenarios can be filtered using selector-based command-line options with support
+for OR, AND, and NOT logic.
 
-**Simple 2-Step Process**:
-
-1. **Select** scenarios using `--select` (OR logic for multiple selectors)
-2. **Exclude** scenarios using `--exclude` (applied after selection)
+**Filtering Syntax**:
 
 ```bash
 # Select by tag
-probitas run --select tag:api
+probitas run --selector tag:api
 
 # Multiple selectors (OR logic - matches any)
-probitas run --select tag:api --select tag:integration
+probitas run --selector tag:api --selector tag:integration
 # => Execute scenarios with "api" OR "integration" tag
 
 # Select by name
-probitas run --select "login"
+probitas run --selector "login"
 
 # Multiple conditions (AND logic - comma-separated within selector)
-probitas run --select "tag:api,tag:critical"
+probitas run --selector "tag:api,tag:critical"
 # => Execute scenarios with "api" AND "critical" tags
 
-# Combine selection and exclusion
-probitas run --select tag:api --exclude tag:slow
-# => Execute scenarios with "api" tag, excluding "slow" tag
+# Negation (NOT logic) - exclude matching scenarios
+probitas run --selector "!tag:slow"
+# => Execute all scenarios except those with "slow" tag
+
+# Combine positive and negative selectors
+probitas run --selector "tag:api,!tag:slow"
+# => Execute scenarios with "api" tag but NOT "slow" tag
 
 # Mix of types within one selector
-probitas run --select "tag:api,name:User"
+probitas run --selector "tag:api,name:User"
 # => Execute scenarios with "api" tag AND name containing "User"
 ```
 
 **Filtering Logic**:
 
-- `--select` flags (multiple): OR logic - execute if matches any selector
+- `--selector` flags (multiple): OR logic - execute if matches any selector
 - Comma-separated in selector: AND logic - must match all conditions
-- `--exclude`: Applied after selection - removes matching scenarios
-- When `--select` omitted: All scenarios selected before exclusion
+- `!` prefix: NOT logic - excludes matching scenarios
+- When `--selector` omitted: All scenarios selected
 
-In the configuration file's `selectors` and `excludeSelectors` fields:
+In the configuration file's `selectors` field:
 
 - `selectors`: Array of selector strings (OR logic between items)
-- `excludeSelectors`: Array of selector strings (OR logic between items)
+- Each selector can contain AND logic (comma-separated) and NOT logic (`!`
+  prefix)
 
 Example:
 
 ```typescript
 selectors: [
   "tag:smoke", // Smoke tests
-  "tag:api,tag:critical", // API tests that are critical (AND)
+  "tag:api,tag:critical,!tag:slow", // API tests that are critical AND NOT slow (AND)
 ];
-excludeSelectors: [
-  "tag:wip", // Exclude WIP
-  "name:.*Integration.*", // Exclude integration tests (by name)
-];
-// => (smoke OR (api AND critical)) AND NOT (wip OR Integration)
+// => (smoke) OR (api AND critical AND NOT slow)
 ```
+
+For detailed information, see [Selector Syntax](./selector.md).
 
 ### `probitas list`
 
@@ -491,21 +494,25 @@ Displays a list of available scenarios.
 probitas list
 
 # Select by tag
-probitas list --select tag:api
+probitas list --selector tag:api
 
 # Multiple selectors (OR logic)
-probitas list --select tag:api --select tag:integration
+probitas list --selector tag:api --selector tag:integration
 # => List scenarios with "api" OR "integration" tag
 
 # Select by name
-probitas list --select "login"
+probitas list --selector "login"
 
 # Multiple conditions (AND logic)
-probitas list --select "tag:api,tag:critical"
+probitas list --selector "tag:api,tag:critical"
 # => List scenarios with "api" AND "critical" tags
 
-# Combination of selection and exclusion
-probitas list --select tag:api --exclude tag:slow
+# Exclude scenarios using negation
+probitas list --selector "!tag:slow"
+# => List all scenarios except those with "slow" tag
+
+# Combination of positive and negative selectors
+probitas list --selector "tag:api,!tag:slow"
 
 # Output in JSON format
 probitas list --json
@@ -516,18 +523,16 @@ defined in the configuration file or defaults to `**/*.scenario.ts`.
 
 #### Options
 
-- `--select <selector>` / `-s` - Select scenarios by tag or name (can be
-  specified multiple times)
-- `--exclude <selector>` / `-x` - Exclude scenarios by tag or name (can be
-  specified multiple times)
+- `--selector <selector>` / `-s` - Select scenarios by tag, name, or file (can
+  be specified multiple times, supports `!` prefix for negation)
 - `--json` - Output in JSON format
 - `--config <path>` - Specify configuration file
 
 **Filtering**:
 
-- Multiple `--select` flags use OR logic (matches any selector)
+- Multiple `--selector` flags use OR logic (matches any selector)
 - Comma-separated in selector uses AND logic (must match all conditions)
-- `--exclude` removes matching scenarios (applied after selection)
+- `!` prefix uses NOT logic (excludes matching scenarios)
 
 **Example**:
 

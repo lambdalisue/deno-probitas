@@ -17,7 +17,6 @@ import { applySelectors, readAsset } from "../utils.ts";
  */
 export interface ListCommandOptions {
   selectors?: string[];
-  excludes?: string[];
   json?: boolean;
   config?: string;
 }
@@ -40,15 +39,13 @@ export async function listCommand(
     const parsed = parseArgs(args, {
       string: ["config"],
       boolean: ["help", "json"],
-      collect: ["select", "exclude"],
+      collect: ["selector"],
       alias: {
         h: "help",
-        s: "select",
-        x: "exclude",
+        s: "selector",
       },
       default: {
-        select: [],
-        exclude: [],
+        selector: [],
       },
     });
 
@@ -72,8 +69,7 @@ export async function listCommand(
 
     // Priority: CLI args > env vars > defaults
     const options: ListCommandOptions = {
-      selectors: parsed.select as string[],
-      excludes: parsed.exclude as string[],
+      selectors: parsed.selector as string[],
       json: parsed.json,
       config: parsed.config || envConfig.config,
     };
@@ -92,11 +88,8 @@ export async function listCommand(
     const selectors = options.selectors && options.selectors.length > 0
       ? options.selectors
       : mergedConfig.selectors || [];
-    const excludes = options.excludes && options.excludes.length > 0
-      ? options.excludes
-      : mergedConfig.excludeSelectors || [];
 
-    const filteredScenarios = applySelectors(scenarios, selectors, excludes);
+    const filteredScenarios = applySelectors(scenarios, selectors);
 
     // Output results
     if (options.json) {
