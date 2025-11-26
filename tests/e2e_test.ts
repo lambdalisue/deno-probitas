@@ -9,6 +9,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { FakeTime } from "@std/testing/time";
 import {
   client,
   DotReporter,
@@ -143,6 +144,8 @@ Deno.test("E2E - Error handling", async () => {
 
 // Test 6: Timeout handling
 Deno.test("E2E - Step timeout", async () => {
+  using time = new FakeTime();
+
   const definition = scenario("Timeout Test")
     .step("Quick step", () => "done")
     .step(
@@ -157,9 +160,13 @@ Deno.test("E2E - Step timeout", async () => {
     .build();
 
   const runner = new ScenarioRunner();
-  const summary = await runner.run([definition], {
+  const summaryPromise = runner.run([definition], {
     maxFailures: 0,
   });
+
+  // Advance time to trigger timeout
+  await time.tickAsync(500);
+  const summary = await summaryPromise;
 
   // Should have at least 1 failed scenario due to timeout
   assertEquals(summary.passed >= 0, true);

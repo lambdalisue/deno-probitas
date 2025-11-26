@@ -6,6 +6,7 @@
 
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { executeStep, executeStepWithRetry } from "./executor.ts";
 import { createScenarioContext, createStepContext } from "./context.ts";
 import type {
@@ -190,6 +191,7 @@ describe("executor", () => {
     });
 
     it("applies timeout to each attempt", async () => {
+      using time = new FakeTime();
       let attempts = 0;
       const step = createTestStep({
         options: {
@@ -207,7 +209,15 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStepWithRetry(step, ctx);
+      const resultPromise = executeStepWithRetry(step, ctx);
+      // First attempt fails immediately
+      assertEquals(attempts, 1);
+      // Wait 1s (first backoff) - triggers second attempt
+      await time.tickAsync(1000);
+      assertEquals(attempts, 2);
+      // Wait 2s (second backoff) - triggers third attempt
+      await time.tickAsync(2000);
+      const result = await resultPromise;
 
       assertEquals(result, "success");
       assertEquals(attempts, 3);
@@ -232,6 +242,7 @@ describe("executor", () => {
     });
 
     it("retries on failure", async () => {
+      using time = new FakeTime();
       let attempts = 0;
       const step = createTestStep({
         options: {
@@ -248,13 +259,22 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStepWithRetry(step, ctx);
+      const resultPromise = executeStepWithRetry(step, ctx);
+      // First attempt fails immediately
+      assertEquals(attempts, 1);
+      // Wait 1s (first backoff) - triggers second attempt
+      await time.tickAsync(1000);
+      assertEquals(attempts, 2);
+      // Wait 2s (second backoff) - triggers third attempt
+      await time.tickAsync(2000);
+      const result = await resultPromise;
 
       assertEquals(result, "success");
       assertEquals(attempts, 3);
     });
 
     it("correctly uses retry module", async () => {
+      using time = new FakeTime();
       let attempts = 0;
       const step = createTestStep({
         options: {
@@ -271,7 +291,15 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStepWithRetry(step, ctx);
+      const resultPromise = executeStepWithRetry(step, ctx);
+      // First attempt fails immediately
+      assertEquals(attempts, 1);
+      // Wait 1s (first backoff) - triggers second attempt
+      await time.tickAsync(1000);
+      assertEquals(attempts, 2);
+      // Wait 2s (second backoff) - triggers third attempt
+      await time.tickAsync(2000);
+      const result = await resultPromise;
 
       assertEquals(result, "success");
       assertEquals(attempts, 3);
@@ -377,6 +405,7 @@ describe("executor", () => {
 
   describe("retry backoff strategies", () => {
     it("respects backoff strategy from step options", async () => {
+      using time = new FakeTime();
       let attempts = 0;
 
       const step = createTestStep({
@@ -395,7 +424,12 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStepWithRetry(step, ctx);
+      const resultPromise = executeStepWithRetry(step, ctx);
+      // First attempt fails immediately
+      assertEquals(attempts, 1);
+      // Exponential backoff: 2^0 * 1000 = 1s - triggers second attempt
+      await time.tickAsync(1000);
+      const result = await resultPromise;
 
       assertEquals(result, "success");
       assertEquals(attempts, 2);
@@ -404,6 +438,7 @@ describe("executor", () => {
 
   describe("async execution paths", () => {
     it("handles async step functions", async () => {
+      using time = new FakeTime();
       let executed = false;
 
       const step = createTestStep({
@@ -415,13 +450,16 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStep(step, ctx);
+      const resultPromise = executeStep(step, ctx);
+      await time.tickAsync(10);
+      const result = await resultPromise;
 
       assertEquals(result, "async result");
       assertEquals(executed, true);
     });
 
     it("handles async step with retry", async () => {
+      using time = new FakeTime();
       let attempts = 0;
 
       const step = createTestStep({
@@ -440,7 +478,15 @@ describe("executor", () => {
       });
       const ctx = createTestStepContext();
 
-      const result = await executeStepWithRetry(step, ctx);
+      const resultPromise = executeStepWithRetry(step, ctx);
+      // First attempt: 5ms setTimeout
+      await time.tickAsync(5);
+      assertEquals(attempts, 1); // First attempt completed
+      // Linear backoff: 1000ms
+      await time.tickAsync(1000);
+      // Second attempt: 5ms setTimeout
+      await time.tickAsync(5);
+      const result = await resultPromise;
 
       assertEquals(result, "async success");
       assertEquals(attempts, 2);

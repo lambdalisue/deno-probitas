@@ -99,7 +99,7 @@ export const stepDefinitions = {
     name: "Slow step",
     location: sourceLocations.step3,
     fn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Intentionally empty - just simulates a step that could be slow
     },
     options: defaultStepOptions,
   },

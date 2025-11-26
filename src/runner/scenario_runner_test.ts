@@ -6,6 +6,7 @@
 
 import { assertEquals, assertExists, assertGreaterOrEqual } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { ScenarioRunner } from "./scenario_runner.ts";
 import type {
   Reporter,
@@ -685,6 +686,7 @@ describe("ScenarioRunner", () => {
     });
 
     it("completes all scenarios in parallel batch even if one fails", async () => {
+      using time = new FakeTime();
       const runner = new ScenarioRunner();
       const executionOrder: string[] = [];
       const executionTimes: Record<string, number> = {};
@@ -735,9 +737,13 @@ describe("ScenarioRunner", () => {
         }),
       ];
 
-      const summary = await runner.run(scenarios, {
+      const summaryPromise = runner.run(scenarios, {
         maxConcurrency: 0,
       });
+
+      // Advance time to complete all scenarios
+      await time.tickAsync(50);
+      const summary = await summaryPromise;
 
       // Verify all scenarios completed
       assertEquals(summary.total, 3);
@@ -992,6 +998,7 @@ describe("ScenarioRunner", () => {
 
   describe("timing", () => {
     it("calculates execution duration", async () => {
+      using time = new FakeTime();
       const runner = new ScenarioRunner();
 
       const scenarios = [
@@ -1006,7 +1013,9 @@ describe("ScenarioRunner", () => {
         }),
       ];
 
-      const summary = await runner.run(scenarios);
+      const summaryPromise = runner.run(scenarios);
+      await time.tickAsync(50);
+      const summary = await summaryPromise;
 
       // Duration should be greater than the step execution time
       assertGreaterOrEqual(summary.duration, 0);
