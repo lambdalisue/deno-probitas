@@ -10,10 +10,14 @@ import outdent from "outdent";
 import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { resolve } from "@std/path";
+import { dirname, resolve } from "@std/path";
 import { defer } from "../../src/helper/defer.ts";
 import { EXIT_CODE } from "../constants.ts";
 import { runCommand } from "./run.ts";
+
+// Get project root deno.jsonc path for tests
+const projectRoot = dirname(dirname(resolve(import.meta.dirname!)));
+const projectConfig = resolve(projectRoot, "deno.jsonc");
 
 describe("run command", () => {
   describe("scenario execution", () => {
@@ -89,6 +93,12 @@ describe("run command", () => {
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
       });
+
+      // Create empty deno.json to prevent finding parent config
+      await Deno.writeTextFile(
+        resolve(tempDir, "deno.json"),
+        JSON.stringify({}),
+      );
 
       const output: string[] = [];
       using _errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -219,7 +229,10 @@ describe("run command", () => {
         output.push(args.join(" "));
       });
 
-      const exitCode = await runCommand(["-s", "tag:nonexistent"], tempDir);
+      const exitCode = await runCommand(
+        ["-s", "tag:nonexistent", "--config", projectConfig],
+        tempDir,
+      );
 
       assertEquals(exitCode, EXIT_CODE.NOT_FOUND);
     });
@@ -583,6 +596,7 @@ describe("run command", () => {
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
       });
+
       const scenarioPath = resolve(tempDir, "pass.scenario.ts");
       await Deno.writeTextFile(
         scenarioPath,
@@ -602,7 +616,7 @@ describe("run command", () => {
           `,
       );
 
-      const exitCode = await runCommand([], tempDir);
+      const exitCode = await runCommand(["--config", projectConfig], tempDir);
 
       assertEquals(exitCode, 0);
     });
@@ -676,6 +690,13 @@ export default scenario("Test").step("Test", () => {}).build();`,
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
       });
+
+      // Create empty deno.json to prevent finding parent config
+      await Deno.writeTextFile(
+        resolve(tempDir, "deno.json"),
+        JSON.stringify({}),
+      );
+
       const output: string[] = [];
       using _errorStub = stub(console, "error", (...args: unknown[]) => {
         output.push(args.join(" "));

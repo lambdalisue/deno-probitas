@@ -105,7 +105,9 @@ export async function listCommand(
 
     // Prepare paths (default to current directory if empty)
     const files = parsed._ as string[];
-    const paths = files.length === 0 ? ["."] : files;
+    const relativePaths = files.length === 0 ? ["."] : files;
+    // Resolve paths relative to cwd
+    const paths = relativePaths.map((p) => resolve(cwd, p));
 
     // Discover scenario files (filter to string patterns only)
     const stringIncludePatterns = includePatterns.filter((p): p is string =>

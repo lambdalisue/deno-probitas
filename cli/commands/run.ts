@@ -6,21 +6,18 @@
 
 import { parseArgs } from "@std/cli";
 import { resolve } from "@std/path";
-import { ScenarioRunner } from "../../src/runner/scenario_runner.ts";
-import type { Reporter, RunOptions } from "../../src/runner/types.ts";
-import type { ReporterOptions } from "../../src/reporter/types.ts";
+import type { DefaultStepOptions } from "../../src/runner/types.ts";
 import { EXIT_CODE } from "../constants.ts";
 import { loadConfig } from "../config.ts";
-import { loadScenarios } from "../loader.ts";
 import type { ProbitasConfig } from "../types.ts";
 import {
-  applySelectors,
   discoverScenarioFiles,
   findDenoConfigFile,
+  getVersion,
   parseMaxConcurrency,
   parseMaxFailures,
   readAsset,
-  resolveReporter,
+  readTemplate,
 } from "../utils.ts";
 
 /**
@@ -39,6 +36,32 @@ export interface RunCommandOptions {
 }
 
 /**
+ * Subprocess input configuration
+ */
+interface SubprocessInput {
+  /** Absolute paths to scenario files */
+  files: string[];
+
+  /** Selectors to filter scenarios */
+  selectors?: string[];
+
+  /** Reporter name */
+  reporter?: string;
+
+  /** Disable color output */
+  noColor?: boolean;
+
+  /** Maximum concurrent scenarios */
+  maxConcurrency?: number;
+
+  /** Maximum number of failures before stopping */
+  maxFailures?: number;
+
+  /** Default step options */
+  stepOptions?: DefaultStepOptions;
+}
+
+/**
  * Execute the run command
  *
  * @param args - Command-line arguments
@@ -46,6 +69,8 @@ export interface RunCommandOptions {
  * @returns Exit code (0 = success, 1 = failure, 2 = usage error)
  *
  * @requires --allow-read Permission to read config and scenario files
+ * @requires --allow-run Permission to run subprocess
+ * @requires --allow-write Permission to create temporary config files
  */
 export async function runCommand(
   args: string[],
@@ -137,9 +162,11 @@ export async function runCommand(
       : mergedConfig.excludes ?? ["**/node_modules/**", "**/.git/**"];
 
     // Prepare paths (use CLI files or default to current directory)
-    const paths = options.files && options.files.length > 0
+    const relativePaths = options.files && options.files.length > 0
       ? options.files
       : ["."];
+    // Resolve paths relative to cwd
+    const paths = relativePaths.map((p) => resolve(cwd, p));
 
     // Discover scenario files (filter to string patterns only)
     const stringIncludePatterns = includePatterns.filter((p): p is string =>
@@ -158,19 +185,7 @@ export async function runCommand(
       stringExcludePatterns,
     );
 
-    // If no files discovered, return early
     if (discoveredFiles.length === 0) {
-      console.error("No scenarios found");
-      return EXIT_CODE.NOT_FOUND;
-    }
-
-    // Load scenarios from discovered files
-    const scenarios = await loadScenarios(cwd, {
-      includes: discoveredFiles as (string | RegExp)[],
-      excludes: mergedConfig.excludes,
-    });
-
-    if (scenarios.length === 0) {
       console.error("No scenarios found");
       return EXIT_CODE.NOT_FOUND;
     }
@@ -180,43 +195,11 @@ export async function runCommand(
       ? options.selectors
       : mergedConfig.selectors || [];
 
-    const filteredScenarios = applySelectors(scenarios, selectors);
-
-    if (filteredScenarios.length === 0) {
-      console.error("No scenarios matched the filter");
-      return EXIT_CODE.NOT_FOUND;
-    }
-
-    // Build run options
-    const reporterOptions: ReporterOptions = {
-      noColor: options.noColor,
-    };
-
-    let reporter: Reporter;
-    if (options.reporter) {
-      reporter = resolveReporter(options.reporter, reporterOptions);
-    } else if (mergedConfig.reporter) {
-      if (typeof mergedConfig.reporter === "string") {
-        reporter = resolveReporter(mergedConfig.reporter, reporterOptions);
-      } else {
-        reporter = mergedConfig.reporter;
-      }
-    } else {
-      reporter = resolveReporter("list", reporterOptions);
-    }
-
-    let runOptions: RunOptions = {
-      reporter,
-    };
-
-    // Set maxConcurrency
+    // Parse maxConcurrency
+    let maxConcurrency: number | undefined;
     if (options.maxConcurrency) {
       try {
-        const concurrency = parseMaxConcurrency(options.maxConcurrency);
-        runOptions = {
-          ...runOptions,
-          maxConcurrency: concurrency,
-        };
+        maxConcurrency = parseMaxConcurrency(options.maxConcurrency);
       } catch (error) {
         console.error(
           error instanceof Error ? error.message : String(error),
@@ -224,22 +207,14 @@ export async function runCommand(
         return EXIT_CODE.USAGE_ERROR;
       }
     } else if (mergedConfig.maxConcurrency) {
-      runOptions = {
-        ...runOptions,
-        maxConcurrency: mergedConfig.maxConcurrency,
-      };
+      maxConcurrency = mergedConfig.maxConcurrency;
     }
 
-    // Set maxFailures
+    // Parse maxFailures
+    let maxFailures: number | undefined;
     if (options.maxFailures) {
       try {
-        const count = parseMaxFailures(options.maxFailures);
-        if (count !== undefined) {
-          runOptions = {
-            ...runOptions,
-            maxFailures: count,
-          };
-        }
+        maxFailures = parseMaxFailures(options.maxFailures);
       } catch (error) {
         console.error(
           error instanceof Error ? error.message : String(error),
@@ -247,18 +222,100 @@ export async function runCommand(
         return EXIT_CODE.USAGE_ERROR;
       }
     } else if (mergedConfig.maxFailures) {
-      runOptions = {
-        ...runOptions,
-        maxFailures: mergedConfig.maxFailures,
-      };
+      maxFailures = mergedConfig.maxFailures;
     }
 
-    // Run scenarios
-    const runner = new ScenarioRunner();
-    const summary = await runner.run(filteredScenarios, runOptions);
+    // Determine reporter name
+    const reporterName = options.reporter ?? mergedConfig.reporter ?? "list";
 
-    // Return exit code
-    return summary.failed > 0 ? EXIT_CODE.FAILURE : EXIT_CODE.SUCCESS;
+    // Prepare subprocess input
+    const subprocessInput: SubprocessInput = {
+      files: discoveredFiles,
+      selectors: selectors.length > 0 ? selectors : undefined,
+      reporter: typeof reporterName === "string" ? reporterName : "list",
+      noColor: options.noColor,
+      maxConcurrency,
+      maxFailures,
+      stepOptions: mergedConfig.stepOptions,
+    };
+
+    // Get subprocess path
+    const subprocessPath = new URL(
+      "../runner_subprocess.ts",
+      import.meta.url,
+    ).pathname;
+
+    // Find or create deno.json
+    // Priority: CLI --config > env PROBITAS_CONFIG > auto search
+    const denoConfigPath = options.config
+      ? resolve(cwd, options.config)
+      : (Deno.env.get("PROBITAS_CONFIG")
+        ? resolve(cwd, Deno.env.get("PROBITAS_CONFIG")!)
+        : findDenoConfigFile(cwd));
+
+    await using stack = new AsyncDisposableStack();
+
+    let configFileToUse = denoConfigPath;
+
+    if (!configFileToUse) {
+      // Create temporary deno.jsonc from template
+      const tempConfigPath = await Deno.makeTempFile({ suffix: ".jsonc" });
+
+      stack.defer(async () => {
+        try {
+          await Deno.remove(tempConfigPath);
+        } catch {
+          // Ignore cleanup errors
+        }
+      });
+
+      const version = getVersion();
+      const versionSpec = version === "unknown" ? "" : `@^${version}`;
+      const template = await readTemplate("deno.jsonc");
+      const content = template.replace("{{VERSION}}", versionSpec);
+
+      await Deno.writeTextFile(tempConfigPath, content);
+      configFileToUse = tempConfigPath;
+    }
+
+    // Prepare subprocess command arguments
+    const subprocessArgs = [
+      "run",
+      "-A",
+      "--config",
+      configFileToUse,
+      subprocessPath,
+    ];
+
+    // Start subprocess
+    const cmd = new Deno.Command("deno", {
+      args: subprocessArgs,
+      cwd,
+      stdin: "piped",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+
+    const child = cmd.spawn();
+
+    // Send configuration via stdin
+    const writer = child.stdin.getWriter();
+    await writer.write(
+      new TextEncoder().encode(JSON.stringify(subprocessInput)),
+    );
+    await writer.close();
+
+    // Wait for subprocess to complete
+    const result = await child.status;
+
+    // Map exit codes
+    if (result.code === 0) {
+      return EXIT_CODE.SUCCESS;
+    } else if (result.code === 4) {
+      return EXIT_CODE.NOT_FOUND;
+    } else {
+      return EXIT_CODE.FAILURE;
+    }
   } catch (err: unknown) {
     const m = err instanceof Error ? err.message : String(err);
     console.error(`Unexpected error: ${m}`);

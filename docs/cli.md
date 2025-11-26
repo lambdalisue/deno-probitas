@@ -1112,6 +1112,54 @@ Probitas CLI returns the following exit codes:
 - `2` - CLI usage error (invalid options, file conflicts, etc.)
 - `4` - Scenario files not found
 
+## Subprocess Execution
+
+The `probitas run` command executes scenarios in a subprocess. This ensures
+scenarios run with the project's `deno.json` configuration and provides
+isolation from the CLI process.
+
+### How It Works
+
+1. **File Discovery**: Main process discovers scenario files using glob patterns
+2. **Config Preparation**:
+   - If `deno.json`/`deno.jsonc` exists, use it
+   - Otherwise, generate a temporary config from template
+3. **Subprocess Spawn**: Start subprocess with
+   `deno run -A --config <config> runner_subprocess.ts`
+4. **Configuration Transfer**: Pass scenario files, selectors, and options via
+   stdin (JSON)
+5. **Scenario Execution**: Subprocess loads and executes scenarios
+6. **Output**: Reporter output streams to parent process (stdout/stderr inherit)
+7. **Cleanup**: Temporary config file is automatically removed
+
+### Benefits
+
+- Scenarios can use project's import maps from `deno.json`
+- Consistent execution environment
+- Isolation from CLI process
+- Global state is not polluted between test runs
+
+### Configuration
+
+If no `deno.json` exists, a temporary config is generated using the same
+template as `probitas init`:
+
+```jsonc
+{
+  "imports": {
+    "probitas": "jsr:@lambdalisue/probitas@^1.0.0"
+  },
+  "probitas": {
+    "reporter": "list",
+    "includes": ["**/*.scenario.ts"],
+    "excludes": ["**/node_modules/**", "**/.git/**"]
+  }
+}
+```
+
+This ensures scenarios can always import from `"probitas"` and other project
+dependencies.
+
 ## Related Resources
 
 - [Runner Specification](./runner.md) - Scenario execution engine

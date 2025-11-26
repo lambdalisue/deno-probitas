@@ -524,29 +524,29 @@ describe("list command", () => {
       });
 
       // Create a default config
-      const defaultConfig = resolve(tempDir, "probitas.config.ts");
+      const defaultConfig = resolve(tempDir, "deno.jsonc");
       await Deno.writeTextFile(
         defaultConfig,
-        outdent`
-          export default {
+        JSON.stringify({
+          probitas: {
             includes: ["*.scenario.ts"],
             reporter: "list",
             verbosity: "normal",
-          };
-        `,
+          },
+        }),
       );
 
       // Create a custom config
-      const customConfig = resolve(tempDir, "custom.config.ts");
+      const customConfig = resolve(tempDir, "custom.jsonc");
       await Deno.writeTextFile(
         customConfig,
-        outdent`
-          export default {
+        JSON.stringify({
+          probitas: {
             includes: ["*.scenario.ts"],
             reporter: "list",
             verbosity: "normal",
-          };
-        `,
+          },
+        }),
       );
 
       const scenarioPath = resolve(tempDir, "test.scenario.ts");
