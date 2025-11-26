@@ -16,7 +16,7 @@ import { initCommand } from "./init.ts";
 
 describe("init command", () => {
   describe("file generation", () => {
-    it("generates probitas.config.ts", async () => {
+    it("generates deno.jsonc", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -26,23 +26,8 @@ describe("init command", () => {
 
       assertEquals(exitCode, EXIT_CODE.SUCCESS);
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
+      const configPath = resolve(tempDir, "deno.jsonc");
       const stat = await Deno.stat(configPath);
-      assertEquals(stat.isFile, true);
-    });
-
-    it("generates scenarios/deno.jsonc", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const exitCode = await initCommand([], tempDir);
-
-      assertEquals(exitCode, EXIT_CODE.SUCCESS);
-
-      const denoJsoncPath = resolve(tempDir, "scenarios", "deno.jsonc");
-      const stat = await Deno.stat(denoJsoncPath);
       assertEquals(stat.isFile, true);
     });
 
@@ -75,14 +60,8 @@ describe("init command", () => {
 
       assertEquals(exitCode, EXIT_CODE.SUCCESS);
 
-      // Check config content
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const configContent = await Deno.readTextFile(configPath);
-      assertEquals(configContent.includes("export default"), true);
-      assertEquals(configContent.includes("ProbitasConfig"), true);
-
       // Check deno.jsonc content
-      const denoJsoncPath = resolve(tempDir, "scenarios", "deno.jsonc");
+      const denoJsoncPath = resolve(tempDir, "deno.jsonc");
       const denoJsoncContent = await Deno.readTextFile(denoJsoncPath);
       assertEquals(denoJsoncContent.includes("imports"), true);
       assertEquals(denoJsoncContent.includes("probitas"), true);
@@ -100,31 +79,17 @@ describe("init command", () => {
   });
 
   describe("existing file handling", () => {
-    it("returns error code 2 when probitas.config.ts exists", async () => {
+    it("returns error code 2 when deno.json with probitas config exists", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
       });
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      await Deno.writeTextFile(configPath, "// existing config");
-
-      const exitCode = await initCommand([], tempDir);
-
-      assertEquals(exitCode, EXIT_CODE.USAGE_ERROR);
-    });
-
-    it("returns error code 2 when scenarios/deno.jsonc exists", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const scenariosDir = resolve(tempDir, "scenarios");
-      await Deno.mkdir(scenariosDir, { recursive: true });
-
-      const denoJsoncPath = resolve(scenariosDir, "deno.jsonc");
-      await Deno.writeTextFile(denoJsoncPath, "{}");
+      const configPath = resolve(tempDir, "deno.json");
+      await Deno.writeTextFile(
+        configPath,
+        JSON.stringify({ probitas: { reporter: "list" } }),
+      );
 
       const exitCode = await initCommand([], tempDir);
 
@@ -150,22 +115,25 @@ describe("init command", () => {
   });
 
   describe("force flag", () => {
-    it("overwrites existing files with --force flag", async () => {
+    it("overwrites existing deno.json with probitas config with --force flag", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
       });
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      await Deno.writeTextFile(configPath, "// old config");
+      const configPath = resolve(tempDir, "deno.json");
+      await Deno.writeTextFile(
+        configPath,
+        JSON.stringify({ probitas: { reporter: "dot" } }),
+      );
 
       const exitCode = await initCommand(["--force"], tempDir);
 
       assertEquals(exitCode, EXIT_CODE.SUCCESS);
 
       const configContent = await Deno.readTextFile(configPath);
-      assertEquals(configContent.includes("// old config"), false);
-      assertEquals(configContent.includes("export default"), true);
+      assertEquals(configContent.includes("probitas"), true);
+      assertEquals(configContent.includes('"reporter": "list"'), true);
     });
 
     it("overwrites all files when --force is used", async () => {
@@ -175,14 +143,13 @@ describe("init command", () => {
       });
 
       // Create existing files
-      const configPath = resolve(tempDir, "probitas.config.ts");
+      const configPath = resolve(tempDir, "deno.json");
       const scenariosDir = resolve(tempDir, "scenarios");
       await Deno.mkdir(scenariosDir, { recursive: true });
 
-      await Deno.writeTextFile(configPath, "// old");
       await Deno.writeTextFile(
-        resolve(scenariosDir, "deno.jsonc"),
-        "{}",
+        configPath,
+        JSON.stringify({ probitas: { reporter: "dot" } }),
       );
       await Deno.writeTextFile(
         resolve(scenariosDir, "example.scenario.ts"),
@@ -195,17 +162,14 @@ describe("init command", () => {
 
       // Verify all files are updated
       const configContent = await Deno.readTextFile(configPath);
-      assertEquals(configContent.includes("export default"), true);
-
-      const denoJsoncContent = await Deno.readTextFile(
-        resolve(scenariosDir, "deno.jsonc"),
-      );
-      assertEquals(denoJsoncContent.includes("imports"), true);
+      assertEquals(configContent.includes("probitas"), true);
+      assertEquals(configContent.includes('"reporter": "list"'), true);
 
       const exampleContent = await Deno.readTextFile(
         resolve(scenariosDir, "example.scenario.ts"),
       );
       assertEquals(exampleContent.includes("scenario"), true);
+      assertEquals(exampleContent.includes("// old"), false);
     });
   });
 
@@ -314,8 +278,10 @@ describe("init command", () => {
         await Deno.remove(tempDir, { recursive: true });
       });
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      await Deno.writeTextFile(configPath, "// existing");
+      const scenariosDir = resolve(tempDir, "scenarios");
+      await Deno.mkdir(scenariosDir, { recursive: true });
+      const examplePath = resolve(scenariosDir, "example.scenario.ts");
+      await Deno.writeTextFile(examplePath, "// existing");
 
       const exitCode = await initCommand([], tempDir);
 

@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { Reporter, RunOptions } from "../src/runner/types.ts";
+import type { DefaultStepOptions } from "../src/runner/types.ts";
 
 /**
  * Selector type for filtering scenarios
@@ -67,24 +67,28 @@ export function parseSelector(selector: string): Selector {
 }
 
 /**
- * ProbitasConfig - Configuration type for CLI
- *
- * Extends RunOptions with CLI-specific settings for file patterns and reporter names.
+ * Probitas configuration
+ * Loaded from deno.json/deno.jsonc
  */
-export interface ProbitasConfig
-  extends Omit<RunOptions, "reporter" | "signal"> {
-  /** Include patterns (glob, file, directory, or RegExp) */
-  readonly includes?: (string | RegExp)[];
+export interface ProbitasConfig {
+  /** Default reporter */
+  readonly reporter?: "dot" | "list" | "json" | "tap";
 
-  /** Exclude patterns (glob, file, directory, or RegExp) */
-  readonly excludes?: (string | RegExp)[];
+  /** File discovery patterns (glob) */
+  readonly includes?: string[];
 
-  /** Reporter (string name or Reporter instance) */
-  readonly reporter?: string | Reporter;
+  /** Exclude patterns (glob) */
+  readonly excludes?: string[];
 
-  /** Selectors for filtering scenarios (CLI-specific) */
-  readonly selectors?: readonly string[];
+  /** Default selectors */
+  readonly selectors?: string[];
 
-  /** Exclude selectors for filtering scenarios (CLI-specific) */
-  readonly excludeSelectors?: readonly string[];
+  /** Maximum concurrent scenarios */
+  readonly maxConcurrency?: number;
+
+  /** Maximum failures before stopping */
+  readonly maxFailures?: number;
+
+  /** Default step options applied to all steps */
+  readonly stepOptions?: DefaultStepOptions;
 }

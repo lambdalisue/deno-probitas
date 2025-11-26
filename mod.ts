@@ -27,6 +27,7 @@
 
 export * from "./src/builder/mod.ts";
 export * from "./src/runner/mod.ts";
+export type { DeepPartial } from "./src/runner/types.ts";
 export * from "./src/reporter/mod.ts";
 export * from "./src/client/mod.ts";
 export * from "./src/helper/mod.ts";

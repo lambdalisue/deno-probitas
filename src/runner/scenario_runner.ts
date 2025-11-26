@@ -8,6 +8,7 @@
  */
 
 import type {
+  DefaultStepOptions,
   Reporter,
   RunOptions,
   RunSummary,
@@ -16,6 +17,7 @@ import type {
   ScenarioResult,
   StepDefinition,
   StepMetadata,
+  StepOptions,
   StepResult,
 } from "./types.ts";
 import { createScenarioContext, createStepContext } from "./context.ts";
@@ -381,6 +383,29 @@ export class ScenarioRunner {
       name: step.name,
       options: step.options,
       location: step.location,
+    };
+  }
+
+  /**
+   * Merge step options with priority: override > base
+   *
+   * Priority: step-level > scenario-level > run-level
+   */
+  #mergeStepOptions(
+    base: DefaultStepOptions | StepOptions | undefined,
+    override: StepOptions,
+  ): StepOptions {
+    if (!base) {
+      return override;
+    }
+
+    return {
+      timeout: override.timeout ?? base.timeout ?? Infinity,
+      retry: {
+        maxAttempts: override.retry?.maxAttempts ?? base.retry?.maxAttempts ??
+          1,
+        backoff: override.retry?.backoff ?? base.retry?.backoff ?? "linear",
+      },
     };
   }
 }

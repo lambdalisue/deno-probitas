@@ -7,6 +7,21 @@
  */
 
 /**
+ * Deep partial type - makes all properties and nested properties optional
+ */
+export type DeepPartial<T> = T extends object ? {
+    [P in keyof T]?: DeepPartial<T[P]>;
+  }
+  : T;
+
+/**
+ * Default step options that can be applied to all scenarios
+ *
+ * All fields are optional (deep partial of StepOptions).
+ */
+export type DefaultStepOptions = DeepPartial<StepOptions>;
+
+/**
  * Source location in a file (for better error messages)
  */
 export interface SourceLocation {
@@ -327,6 +342,9 @@ export interface RunOptions {
    * - N: stop after N failures
    */
   readonly maxFailures?: number;
+
+  /** Default step options applied to all steps */
+  readonly stepOptions?: DefaultStepOptions;
 
   /** Abort signal for cancellation */
   readonly signal?: AbortSignal;

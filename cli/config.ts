@@ -4,53 +4,50 @@
  * @module
  */
 
-import { resolve, toFileUrl } from "@std/path";
-import { existsSync } from "@std/fs/exists";
+import { parse as parseJsonc } from "@std/jsonc";
+import { is, maybe } from "@core/unknownutil";
+import type { DefaultStepOptions } from "../src/runner/types.ts";
 import type { ProbitasConfig } from "./types.ts";
 
 /**
- * Load configuration from file
+ * Load Probitas configuration from a deno.json/deno.jsonc file
  *
- * Searches for probitas.config.ts or probitas.config.js in the given directory.
- * Uses dynamic import to load the configuration file.
- *
- * @param cwd - Current working directory
- * @param configPath - Optional explicit config file path
- * @returns Loaded configuration or null if not found
+ * @param configPath - Path to deno.json/deno.jsonc file (absolute or relative)
+ * @returns Probitas configuration from the "probitas" section
+ * @throws Error if the file cannot be read
  *
  * @requires --allow-read Permission to read config file
  */
 export async function loadConfig(
-  cwd: string,
-  configPath?: string,
-): Promise<ProbitasConfig | null> {
-  let targetPath: string | null = null;
+  configPath: string,
+): Promise<ProbitasConfig> {
+  const content = await Deno.readTextFile(configPath);
+  const config = parseJsonc(content) as Record<string, unknown>;
+  return parseProbitasConfig(config.probitas || {});
+}
 
-  if (configPath) {
-    // Use explicit config path
-    targetPath = resolve(cwd, configPath);
-  } else {
-    // Search for probitas.config.ts or probitas.config.js
-    const searchPaths = [
-      resolve(cwd, "probitas.config.ts"),
-      resolve(cwd, "probitas.config.js"),
-    ];
-
-    targetPath = searchPaths.find((f) => existsSync(f)) ?? null;
-
-    if (!targetPath) {
-      return null;
-    }
+/**
+ * Parse and validate probitas configuration section
+ *
+ * @param raw - Raw configuration object from deno.json
+ * @returns Parsed ProbitasConfig with validation
+ */
+function parseProbitasConfig(raw: unknown): ProbitasConfig {
+  if (!is.ObjectOf({})(raw)) {
+    return {};
   }
 
-  try {
-    // Dynamic import with file:// URL
-    const fileUrl = toFileUrl(targetPath);
-    const module = await import(fileUrl.href);
-    const config = module.default as ProbitasConfig;
-    return config;
-  } catch (err: unknown) {
-    const m = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to load config file ${targetPath}: ${m}`);
-  }
+  const obj = raw as Record<string, unknown>;
+  const isStringArray = is.ArrayOf(is.String);
+  const isReporter = is.LiteralOneOf(["dot", "list", "json", "tap"] as const);
+
+  return {
+    reporter: maybe(obj.reporter, isReporter),
+    includes: maybe(obj.includes, isStringArray),
+    excludes: maybe(obj.excludes, isStringArray),
+    selectors: maybe(obj.selectors, isStringArray),
+    maxConcurrency: maybe(obj.maxConcurrency, is.Number),
+    maxFailures: maybe(obj.maxFailures, is.Number),
+    stepOptions: obj.stepOptions as DefaultStepOptions | undefined,
+  };
 }

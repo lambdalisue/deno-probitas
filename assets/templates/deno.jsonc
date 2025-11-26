@@ -1,5 +1,19 @@
 {
+  // Import maps for scenario files
   "imports": {
-    "probitas": "jsr:@lambdalisue/probitas@^{{VERSION}}"
+    "probitas": "jsr:@lambdalisue/probitas{{VERSION}}"
+  },
+  // Probitas configuration
+  "probitas": {
+    // File discovery patterns (glob)
+    "includes": [
+      "**/*.scenario.ts"
+    ],
+    "excludes": [
+      "**/node_modules/**",
+      "**/.git/**"
+    ],
+    // Reporter format
+    "reporter": "list"
   }
 }

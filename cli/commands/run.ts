@@ -5,6 +5,7 @@
  */
 
 import { parseArgs } from "@std/cli";
+import { resolve } from "@std/path";
 import { ScenarioRunner } from "../../src/runner/scenario_runner.ts";
 import type { Reporter, RunOptions } from "../../src/runner/types.ts";
 import type { ReporterOptions } from "../../src/reporter/types.ts";
@@ -15,6 +16,7 @@ import type { ProbitasConfig } from "../types.ts";
 import {
   applySelectors,
   discoverScenarioFiles,
+  findDenoConfigFile,
   parseMaxConcurrency,
   parseMaxFailures,
   readAsset,
@@ -98,7 +100,6 @@ export async function runCommand(
 
     // Read environment variables (lower priority than CLI args)
     const noColor = Deno.env.get("NO_COLOR") !== undefined;
-    const configFile = Deno.env.get("PROBITAS_CONFIG");
 
     // Priority: CLI args > env vars > defaults
     const options: RunCommandOptions = {
@@ -110,12 +111,22 @@ export async function runCommand(
       maxConcurrency: parsed.sequential ? 1 : parsed["max-concurrency"],
       maxFailures: parsed["fail-fast"] ? 1 : parsed["max-failures"],
       noColor: parsed["no-color"] || noColor,
-      config: parsed.config || configFile,
+      config: parsed.config,
     };
 
+    // Determine config file path (priority: --config > env > auto search)
+    const configPath =
+      (options.config ? resolve(cwd, options.config) : undefined) ??
+        (Deno.env.get("PROBITAS_CONFIG")
+          ? resolve(cwd, Deno.env.get("PROBITAS_CONFIG")!)
+          : undefined) ??
+        findDenoConfigFile(cwd);
+
     // Load configuration
-    const config = await loadConfig(cwd, options.config);
-    const mergedConfig = (config ?? {}) as ProbitasConfig;
+    let mergedConfig: ProbitasConfig = {};
+    if (configPath) {
+      mergedConfig = await loadConfig(configPath);
+    }
 
     // Merge include/exclude patterns with priority: CLI > config > defaults
     const includePatterns = options.includes?.length
@@ -146,6 +157,12 @@ export async function runCommand(
       finalIncludePatterns,
       stringExcludePatterns,
     );
+
+    // If no files discovered, return early
+    if (discoveredFiles.length === 0) {
+      console.error("No scenarios found");
+      return EXIT_CODE.NOT_FOUND;
+    }
 
     // Load scenarios from discovered files
     const scenarios = await loadScenarios(cwd, {

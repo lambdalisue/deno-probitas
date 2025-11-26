@@ -6,209 +6,325 @@
  * @module
  */
 
-import outdent from "outdent";
 import { assertEquals, assertRejects } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { resolve } from "@std/path";
 import { defer } from "../src/helper/defer.ts";
 import { loadConfig } from "./config.ts";
+import type { ProbitasConfig } from "./types.ts";
 
-describe("config loader", () => {
-  describe("loadConfig", () => {
-    it("returns null when no config file exists", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const result = await loadConfig(tempDir);
-      assertEquals(result, null);
+describe("loadConfig", { permissions: { read: true, write: true } }, () => {
+  it("loads from deno.json", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("loads probitas.config.ts when exists", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        reporter: "list",
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const configContent = outdent`
-        export default {
-          reporter: "list",
-          verbosity: "normal",
-        };
-      `;
-      await Deno.writeTextFile(configPath, configContent);
+    const result = await loadConfig(configPath);
+    assertEquals(result.reporter, "list");
+  });
 
-      const result = await loadConfig(tempDir);
-      assertEquals(result?.reporter, "list");
+  it("loads from deno.jsonc", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("loads probitas.config.js when exists", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
+    const configPath = resolve(tempDir, "deno.jsonc");
+    const configContent = `{
+  // Configuration comment
+  "probitas": {
+    "reporter": "dot"
+  }
+}`;
+    await Deno.writeTextFile(configPath, configContent);
 
-      const configPath = resolve(tempDir, "probitas.config.js");
-      const configContent = outdent`
-        export default {
-          reporter: "dot",
-          verbosity: "verbose",
-        };
-      `;
-      await Deno.writeTextFile(configPath, configContent);
+    const result = await loadConfig(configPath);
+    assertEquals(result.reporter, "dot");
+  });
 
-      const result = await loadConfig(tempDir);
-      assertEquals(result?.reporter, "dot");
+  it("parses probitas section", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("prioritizes .ts over .js when both exist", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      name: "my-project",
+      version: "1.0.0",
+      probitas: {
+        reporter: "json",
+        includes: ["**/*_test.ts", "tests/**/*.ts"],
+        excludes: ["**/skip/**"],
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
 
-      const tsPath = resolve(tempDir, "probitas.config.ts");
-      const jsPath = resolve(tempDir, "probitas.config.js");
+    const result = await loadConfig(configPath);
+    assertEquals(result.reporter, "json");
+    assertEquals(result.includes, ["**/*_test.ts", "tests/**/*.ts"]);
+    assertEquals(result.excludes, ["**/skip/**"]);
+  });
 
-      await Deno.writeTextFile(
-        tsPath,
-        "export default { reporter: 'list' };",
-      );
-      await Deno.writeTextFile(
-        jsPath,
-        "export default { reporter: 'dot' };",
-      );
-
-      const result = await loadConfig(tempDir);
-      assertEquals(result?.reporter, "list");
+  it("validates reporter field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("loads config from specified path", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
+    const configPath = resolve(tempDir, "deno.json");
 
-      const subDir = resolve(tempDir, "config");
-      await Deno.mkdir(subDir, { recursive: true });
+    const testCases: Array<[unknown, boolean]> = [
+      ["dot", true],
+      ["list", true],
+      ["json", true],
+      ["tap", true],
+      ["invalid", false],
+      [123, false],
+    ];
 
-      const configPath = resolve(subDir, "custom.config.ts");
-      await Deno.writeTextFile(
-        configPath,
-        "export default { reporter: 'json' };",
-      );
-
-      const result = await loadConfig(tempDir, "config/custom.config.ts");
-      assertEquals(result?.reporter, "json");
-    });
-
-    it("throws error when specified config file does not exist", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      await assertRejects(
-        async () => {
-          await loadConfig(tempDir, "nonexistent.config.ts");
+    for (const [reporter, shouldBeValid] of testCases) {
+      const configContent = JSON.stringify({
+        probitas: {
+          reporter,
         },
-        Error,
-        "Failed to load config file",
-      );
-    });
-
-    it("throws error for invalid config syntax", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
       });
-
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const invalidContent = "export default { invalid: syntax here";
-      await Deno.writeTextFile(configPath, invalidContent);
-
-      await assertRejects(
-        async () => {
-          await loadConfig(tempDir);
-        },
-        Error,
-        "Failed to load config file",
-      );
-    });
-
-    it("throws error when config has no default export", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const content = "export const config = { reporter: 'list' };";
-      await Deno.writeTextFile(configPath, content);
-
-      const result = await loadConfig(tempDir);
-      assertEquals(result, undefined);
-    });
-
-    it("loads config with includes and excludes patterns", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const configContent = outdent`
-        export default {
-          reporter: "list",
-          includes: ["**/*.test.ts", /custom/],
-          excludes: ["**/skip/**", /deprecated/],
-        };
-      `;
       await Deno.writeTextFile(configPath, configContent);
 
-      const result = await loadConfig(tempDir);
-      assertEquals(Array.isArray(result?.includes), true);
-      assertEquals(Array.isArray(result?.excludes), true);
+      const result = await loadConfig(configPath);
+      if (shouldBeValid) {
+        assertEquals(result.reporter, reporter);
+      } else {
+        assertEquals(result.reporter, undefined);
+      }
+    }
+  });
+
+  it("validates includes field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("loads config with maxConcurrency", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        includes: ["**/*.test.ts", "**/*_test.ts"],
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
 
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const configContent = outdent`
-        export default {
-          reporter: "list",
-          maxConcurrency: 1,
-        };
-      `;
-      await Deno.writeTextFile(configPath, configContent);
+    const result = await loadConfig(configPath);
+    assertEquals(Array.isArray(result.includes), true);
+    assertEquals(result.includes, ["**/*.test.ts", "**/*_test.ts"]);
+  });
 
-      const result = await loadConfig(tempDir);
-      assertEquals(result?.maxConcurrency, 1);
+  it("validates excludes field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
     });
 
-    it("loads config with maxFailures", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const configPath = resolve(tempDir, "probitas.config.ts");
-      const configContent = outdent`
-        export default {
-          reporter: "list",
-          maxFailures: 1,
-        };
-      `;
-      await Deno.writeTextFile(configPath, configContent);
-
-      const result = await loadConfig(tempDir);
-      assertEquals(result?.maxFailures, 1);
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        excludes: ["**/node_modules/**", "**/dist/**"],
+      },
     });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(Array.isArray(result.excludes), true);
+    assertEquals(result.excludes, ["**/node_modules/**", "**/dist/**"]);
+  });
+
+  it("validates selectors field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        selectors: ["fast", "integration"],
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(Array.isArray(result.selectors), true);
+    assertEquals(result.selectors, ["fast", "integration"]);
+  });
+
+  it("validates maxConcurrency field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        maxConcurrency: 4,
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(result.maxConcurrency, 4);
+  });
+
+  it("validates maxFailures field", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        maxFailures: 10,
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(result.maxFailures, 10);
+  });
+
+  it("returns empty object when probitas section is missing", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      name: "my-project",
+      version: "1.0.0",
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    // All fields are undefined
+    assertEquals(result.reporter, undefined);
+    assertEquals(result.includes, undefined);
+    assertEquals(result.excludes, undefined);
+  });
+
+  it("handles empty probitas section", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {},
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result: ProbitasConfig = await loadConfig(configPath);
+    assertEquals(result, {
+      reporter: undefined,
+      includes: undefined,
+      excludes: undefined,
+      selectors: undefined,
+      maxConcurrency: undefined,
+      maxFailures: undefined,
+      stepOptions: undefined,
+    });
+  });
+
+  it("throws error when file does not exist", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "nonexistent.json");
+    await assertRejects(
+      async () => {
+        await loadConfig(configPath);
+      },
+      Deno.errors.NotFound,
+    );
+  });
+
+  it("throws error for invalid JSON", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const invalidContent = "{ invalid json content";
+    await Deno.writeTextFile(configPath, invalidContent);
+
+    await assertRejects(
+      async () => {
+        await loadConfig(configPath);
+      },
+      SyntaxError,
+    );
+  });
+
+  it("ignores unknown fields", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        reporter: "list",
+        unknownField: "should be ignored",
+        anotherField: 123,
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(result.reporter, "list");
+    assertEquals((result as Record<string, unknown>).unknownField, undefined);
+  });
+
+  it("handles all fields together", async () => {
+    const tempDir = await Deno.makeTempDir();
+    await using _cleanup = defer(async () => {
+      await Deno.remove(tempDir, { recursive: true });
+    });
+
+    const configPath = resolve(tempDir, "deno.json");
+    const configContent = JSON.stringify({
+      probitas: {
+        reporter: "json",
+        includes: ["**/*.test.ts"],
+        excludes: ["**/skip/**"],
+        selectors: ["unit", "integration"],
+        maxConcurrency: 8,
+        maxFailures: 5,
+      },
+    });
+    await Deno.writeTextFile(configPath, configContent);
+
+    const result = await loadConfig(configPath);
+    assertEquals(result.reporter, "json");
+    assertEquals(result.includes, ["**/*.test.ts"]);
+    assertEquals(result.excludes, ["**/skip/**"]);
+    assertEquals(result.selectors, ["unit", "integration"]);
+    assertEquals(result.maxConcurrency, 8);
+    assertEquals(result.maxFailures, 5);
   });
 });

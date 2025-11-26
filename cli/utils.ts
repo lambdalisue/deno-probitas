@@ -226,6 +226,57 @@ export function applySelectors(
 }
 
 /**
+ * Find deno.json or deno.jsonc file
+ *
+ * Search order:
+ * 1. deno.json in current directory
+ * 2. deno.jsonc in current directory
+ * 3. Recursively search parent directories up to project root
+ *
+ * @param cwd - Starting directory to search from
+ * @returns Absolute path to config file, or undefined if not found
+ * @requires --allow-read Permission to read file system
+ */
+export function findDenoConfigFile(cwd: string): string | undefined {
+  let currentDir = resolve(cwd);
+
+  while (true) {
+    // Check for deno.json first
+    const denoJsonPath = resolve(currentDir, "deno.json");
+    try {
+      const stat = Deno.statSync(denoJsonPath);
+      if (stat.isFile) {
+        return denoJsonPath;
+      }
+    } catch {
+      // File doesn't exist or can't be read
+    }
+
+    // Check for deno.jsonc
+    const denoJsoncPath = resolve(currentDir, "deno.jsonc");
+    try {
+      const stat = Deno.statSync(denoJsoncPath);
+      if (stat.isFile) {
+        return denoJsoncPath;
+      }
+    } catch {
+      // File doesn't exist or can't be read
+    }
+
+    // Check if we're at the root
+    const parent = resolve(currentDir, "..");
+    if (parent === currentDir) {
+      // We've reached the root
+      break;
+    }
+
+    currentDir = parent;
+  }
+
+  return undefined;
+}
+
+/**
  * Discover scenario files using glob patterns
  *
  * Behavior:

@@ -235,12 +235,6 @@ describe("utils", () => {
   });
 
   describe("readTemplate", () => {
-    it("reads probitas.config.ts template", async () => {
-      const content = await readTemplate("probitas.config.ts");
-      assertStringIncludes(content, "ProbitasConfig");
-      assertStringIncludes(content, "satisfies");
-    });
-
     it("reads deno.jsonc template", async () => {
       const content = await readTemplate("deno.jsonc");
       assertStringIncludes(content, "imports");
@@ -543,7 +537,7 @@ describe("utils", () => {
       );
       assertEquals(result.length, 1);
       // Result should be absolute path
-      assertEquals(result[0], result[0]); // Should already be absolute
+      assertEquals(result[0], cwdPath);
     });
   });
 });

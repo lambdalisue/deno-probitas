@@ -5,12 +5,18 @@
  */
 
 import { parseArgs } from "@std/cli";
+import { resolve } from "@std/path";
 import type { ScenarioDefinition } from "../../src/runner/types.ts";
 import { EXIT_CODE } from "../constants.ts";
 import { loadConfig } from "../config.ts";
 import { loadScenarios } from "../loader.ts";
 import type { ProbitasConfig } from "../types.ts";
-import { applySelectors, discoverScenarioFiles, readAsset } from "../utils.ts";
+import {
+  applySelectors,
+  discoverScenarioFiles,
+  findDenoConfigFile,
+  readAsset,
+} from "../utils.ts";
 
 /**
  * Options for the list command
@@ -66,23 +72,28 @@ export async function listCommand(
       }
     }
 
-    // Read environment variables (lower priority than CLI args)
-    const envConfig = {
-      config: Deno.env.get("PROBITAS_CONFIG"),
-    };
-
     // Priority: CLI args > env vars > defaults
     const options: ListCommandOptions = {
       includes: parsed.include as string[],
       excludes: parsed.exclude as string[],
       selectors: parsed.selector as string[],
       json: parsed.json,
-      config: parsed.config || envConfig.config,
+      config: parsed.config,
     };
 
+    // Determine config file path (priority: --config > env > auto search)
+    const configPath =
+      (options.config ? resolve(cwd, options.config) : undefined) ??
+        (Deno.env.get("PROBITAS_CONFIG")
+          ? resolve(cwd, Deno.env.get("PROBITAS_CONFIG")!)
+          : undefined) ??
+        findDenoConfigFile(cwd);
+
     // Load configuration
-    const config = await loadConfig(cwd, options.config);
-    const mergedConfig = (config ?? {}) as ProbitasConfig;
+    let mergedConfig: ProbitasConfig = {};
+    if (configPath) {
+      mergedConfig = await loadConfig(configPath);
+    }
 
     // Merge include/exclude patterns with priority: CLI > config > defaults
     const includePatterns = options.includes?.length
