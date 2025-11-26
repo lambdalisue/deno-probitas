@@ -4,6 +4,8 @@
  * @module
  */
 
+import { expandGlob } from "@std/fs";
+import { resolve } from "@std/path";
 import {
   DotReporter,
   JSONReporter,
@@ -221,4 +223,68 @@ export function applySelectors(
       });
     });
   });
+}
+
+/**
+ * Discover scenario files using glob patterns
+ *
+ * Behavior:
+ * - File path → Return that file as absolute path
+ * - Directory path → Discover within directory using includes patterns
+ * - Glob pattern → Pattern matching
+ *
+ * @param paths - Paths (files, directories, or glob patterns) - relative or absolute
+ * @param includes - Include patterns (glob) for directory discovery
+ * @param excludes - Exclude patterns (glob)
+ * @returns Array of absolute file paths (sorted)
+ *
+ * @requires --allow-read Permission to read file system
+ */
+export async function discoverScenarioFiles(
+  paths: string[],
+  includes: string[],
+  excludes: string[],
+): Promise<string[]> {
+  const filePaths = new Set<string>();
+
+  // Process each path
+  for (const path of paths) {
+    try {
+      const stat = await Deno.stat(path);
+
+      if (stat.isFile) {
+        // Direct file specification - add as absolute path
+        filePaths.add(resolve(path));
+        continue;
+      }
+
+      if (stat.isDirectory) {
+        // Directory - discover files within it using include patterns
+        const searches = includes.map(async (pattern) => {
+          const files: string[] = [];
+          for await (
+            const entry of expandGlob(pattern, {
+              root: path,
+              exclude: excludes,
+              extended: true,
+              globstar: true,
+            })
+          ) {
+            if (entry.isFile) {
+              files.push(resolve(entry.path));
+            }
+          }
+          return files;
+        });
+
+        const results = await Promise.all(searches);
+        results.flat().forEach((f) => filePaths.add(f));
+        continue;
+      }
+    } catch {
+      // Path doesn't exist - skip (could be glob pattern but invalid)
+    }
+  }
+
+  return Array.from(filePaths).sort();
 }

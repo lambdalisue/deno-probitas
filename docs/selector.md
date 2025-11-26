@@ -124,3 +124,58 @@ probitas list -s "tag:api,!tag:slow"
 
 - Case-insensitive matching (e.g., "login" matches "Login")
 - Partial match, not exact match
+
+## File Patterns vs Selectors
+
+Probitas has a two-stage filtering mechanism.
+
+### 1. File Patterns (`--include` / `--exclude`)
+
+**Filter applied during file discovery**. Determines which files to load.
+
+```bash
+probitas list --include "e2e/**/*.scenario.ts"
+probitas run --exclude "**/*.skip.scenario.ts"
+```
+
+**Features:**
+
+- Applied at file discovery phase
+- Specified with glob patterns
+- Default include: `**/*.scenario.ts`
+- Default exclude: `**/node_modules/**`, `**/.git/**`
+
+### 2. Selectors (`-s` / `--selector`)
+
+**Filter scenarios after loading**. Filter by tags, names, and file paths.
+
+```bash
+probitas run -s "tag:smoke"
+probitas run -s "!tag:slow"
+```
+
+**Features:**
+
+- Applied after scenario loading
+- Uses selector syntax (supports `!` negation)
+- Supports AND condition (`,`) and OR condition (multiple `-s`)
+
+### Execution Order
+
+1. **File Discovery**: Determine which files to load with `--include` /
+   `--exclude`
+2. **Scenario Loading**: Load scenario definitions from discovered files
+3. **Selector Application**: Filter scenarios with `-s` / `--selector`
+
+### Implementation Examples
+
+```bash
+# Run scenarios with smoke tag in api/ directory
+probitas run --include "api/**/*.scenario.ts" -s "tag:smoke"
+
+# Exclude skip files and slow tag scenarios
+probitas run --exclude "**/*.skip.ts" -s "!tag:slow"
+
+# Only critical scenarios in e2e tests
+probitas run --include "e2e/**/*.ts" -s "tag:critical"
+```

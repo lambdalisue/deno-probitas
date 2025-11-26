@@ -1,9 +1,14 @@
 probitas list - List available scenarios
 
-Usage: probitas list [options]
+Usage: probitas list [options] [paths...]
+
+Arguments:
+  [paths...]  Scenario file paths, directories, or glob patterns (optional)
 
 Options:
   -h, --help              Show help message
+  --include <pattern>     Include pattern for file discovery (can be specified multiple times)
+  --exclude <pattern>     Exclude pattern for file discovery (can be specified multiple times)
   -s, --selector <selector> Select scenarios by selector (can be specified multiple times)
                           Supports ! prefix for negation
   --json                  Output in JSON format
@@ -30,6 +35,14 @@ Selector Format:
 Examples:
   probitas list                                 List all scenarios
 
+  # File patterns
+  probitas list --include "e2e/**/*.scenario.ts" List scenarios in e2e/ directory
+  probitas list --exclude "**/*.skip.scenario.ts" List all except skip scenarios
+
+  # Combine file patterns with selectors
+  probitas list --include "api/**/*.ts" -s "tag:smoke" List smoke tests in api/
+  probitas list --exclude "**/*.skip.ts" -s "!tag:slow" Exclude slow tests
+
   # Select by tag
   probitas list -s tag:smoke                    List scenarios with @smoke tag
   probitas list -s tag:smoke -s tag:api         List @smoke OR @api tag scenarios
@@ -53,4 +66,10 @@ Examples:
   # JSON output
   probitas list --json                          Output as JSON
 
-Note: Uses patterns from config file or defaults to "**/*.scenario.ts"
+File Discovery:
+  Default include pattern: **/*.scenario.ts
+  Default exclude pattern: **/node_modules/**, **/.git/**
+  Patterns support:
+    ** - Any depth of directories
+    *  - Any characters (except directory separator)
+    ?  - Any single character

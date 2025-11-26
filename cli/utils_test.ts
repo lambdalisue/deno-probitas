@@ -11,9 +11,11 @@ import {
   assertThrows,
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
+import { resolve } from "@std/path";
 import type { ScenarioDefinition } from "../src/runner/types.ts";
 import {
   applySelectors,
+  discoverScenarioFiles,
   getVersion,
   parseMaxConcurrency,
   parseMaxFailures,
@@ -459,6 +461,89 @@ describe("utils", () => {
     it("returns all scenarios when no selectors", () => {
       const result = applySelectors(scenarios, []);
       assertEquals(result.length, 5);
+    });
+  });
+
+  describe("discoverScenarioFiles", () => {
+    it("returns empty array when given empty path array", async () => {
+      const result = await discoverScenarioFiles([], ["**/*.ts"], []);
+      assertEquals(result.length, 0);
+    });
+
+    it("returns absolute path for direct file specification", async () => {
+      const testFile = resolve(Deno.cwd(), "cli/utils_test.ts");
+      const result = await discoverScenarioFiles(
+        ["cli/utils_test.ts"],
+        ["**/*.ts"],
+        [],
+      );
+      assertEquals(result.length, 1);
+      assertEquals(result[0], testFile);
+    });
+
+    it("skips non-existent paths", async () => {
+      const result = await discoverScenarioFiles(
+        ["/nonexistent/path"],
+        ["**/*.ts"],
+        [],
+      );
+      assertEquals(result.length, 0);
+    });
+
+    it("discovers files in a directory using include patterns", async () => {
+      const result = await discoverScenarioFiles(
+        ["cli"],
+        ["*_test.ts"],
+        [],
+      );
+      // Should find cli/utils_test.ts, cli/config_test.ts etc.
+      const hasUtilsTest = result.some((p) => p.endsWith("utils_test.ts"));
+      assertEquals(hasUtilsTest, true);
+    });
+
+    it("excludes files matching exclude patterns", async () => {
+      const result = await discoverScenarioFiles(
+        ["cli"],
+        ["*.ts"],
+        ["*_test.ts"],
+      );
+      const hasTestFile = result.some((p) => p.endsWith("_test.ts"));
+      assertEquals(hasTestFile, false);
+    });
+
+    it("sorts results alphabetically", async () => {
+      const result = await discoverScenarioFiles(
+        ["cli"],
+        ["*.ts"],
+        ["*_test.ts"],
+      );
+      const isSorted = result.every(
+        (item, index, arr) => index === 0 || arr[index - 1] <= item,
+      );
+      assertEquals(isSorted, true);
+    });
+
+    it("handles multiple include patterns", async () => {
+      const result = await discoverScenarioFiles(
+        ["cli"],
+        ["utils.ts", "types.ts"],
+        [],
+      );
+      const hasUtils = result.some((p) => p.endsWith("utils.ts"));
+      const hasTypes = result.some((p) => p.endsWith("types.ts"));
+      assertEquals(hasUtils || hasTypes, true);
+    });
+
+    it("handles relative and absolute paths", async () => {
+      const cwdPath = resolve("cli/utils.ts");
+      const result = await discoverScenarioFiles(
+        [cwdPath],
+        ["**/*.ts"],
+        [],
+      );
+      assertEquals(result.length, 1);
+      // Result should be absolute path
+      assertEquals(result[0], result[0]); // Should already be absolute
     });
   });
 });

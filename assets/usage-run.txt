@@ -8,6 +8,8 @@ Arguments:
 
 Options:
   -h, --help                Show help message
+  --include <pattern>       Include pattern for file discovery (can be specified multiple times)
+  --exclude <pattern>       Exclude pattern for file discovery (can be specified multiple times)
   -s, --selector <selector> Select scenarios by selector (can be specified multiple times)
                             Supports ! prefix for negation
   --reporter <name>         Reporter to use (dot, list, json, tap)
@@ -41,6 +43,15 @@ Examples:
   probitas run                              Run all scenarios
   probitas run examples/                    Run scenarios in examples/
   probitas run test.scenario.ts             Run specific file
+
+  # File patterns
+  probitas run --include "e2e/**/*.scenario.ts" Run scenarios in e2e/ directory
+  probitas run --exclude "**/*.skip.scenario.ts" Run all except skip scenarios
+  probitas run --include "api/**/*.ts" --exclude "**/*_draft.ts" Run api but exclude drafts
+
+  # Combine file patterns with selectors
+  probitas run --include "api/**/*.ts" -s "tag:smoke" Run smoke tests in api/
+  probitas run --exclude "**/*.skip.ts" -s "!tag:slow" Run, exclude slow tests
 
   # Select by tag
   probitas run -s tag:smoke                 Run scenarios with @smoke tag
@@ -76,6 +87,14 @@ Examples:
   probitas run --quiet                      Quiet output (same as -q)
   probitas run -d                           Debug output
   probitas run --debug                      Debug output (same as -d)
+
+File Discovery:
+  Default include pattern: **/*.scenario.ts
+  Default exclude pattern: **/node_modules/**, **/.git/**
+  Patterns support:
+    ** - Any depth of directories
+    *  - Any characters (except directory separator)
+    ?  - Any single character
 
 Environment Variables:
   NO_COLOR         Disable colored output

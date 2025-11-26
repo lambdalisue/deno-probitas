@@ -10,12 +10,14 @@ import { EXIT_CODE } from "../constants.ts";
 import { loadConfig } from "../config.ts";
 import { loadScenarios } from "../loader.ts";
 import type { ProbitasConfig } from "../types.ts";
-import { applySelectors, readAsset } from "../utils.ts";
+import { applySelectors, discoverScenarioFiles, readAsset } from "../utils.ts";
 
 /**
  * Options for the list command
  */
 export interface ListCommandOptions {
+  includes?: string[];
+  excludes?: string[];
   selectors?: string[];
   json?: boolean;
   config?: string;
@@ -39,13 +41,15 @@ export async function listCommand(
     const parsed = parseArgs(args, {
       string: ["config"],
       boolean: ["help", "json"],
-      collect: ["selector"],
+      collect: ["selector", "include", "exclude"],
       alias: {
         h: "help",
         s: "selector",
       },
       default: {
         selector: [],
+        include: [],
+        exclude: [],
       },
     });
 
@@ -69,6 +73,8 @@ export async function listCommand(
 
     // Priority: CLI args > env vars > defaults
     const options: ListCommandOptions = {
+      includes: parsed.include as string[],
+      excludes: parsed.exclude as string[],
       selectors: parsed.selector as string[],
       json: parsed.json,
       config: parsed.config || envConfig.config,
@@ -76,11 +82,40 @@ export async function listCommand(
 
     // Load configuration
     const config = await loadConfig(cwd, options.config);
-    const mergedConfig = { ...config } as ProbitasConfig;
+    const mergedConfig = (config ?? {}) as ProbitasConfig;
 
-    // Load scenarios
+    // Merge include/exclude patterns with priority: CLI > config > defaults
+    const includePatterns = options.includes?.length
+      ? options.includes
+      : mergedConfig.includes ?? ["**/*.scenario.ts"];
+    const excludePatterns = options.excludes?.length
+      ? options.excludes
+      : mergedConfig.excludes ?? ["**/node_modules/**", "**/.git/**"];
+
+    // Prepare paths (default to current directory if empty)
+    const files = parsed._ as string[];
+    const paths = files.length === 0 ? ["."] : files;
+
+    // Discover scenario files (filter to string patterns only)
+    const stringIncludePatterns = includePatterns.filter((p): p is string =>
+      typeof p === "string"
+    );
+    const stringExcludePatterns = excludePatterns.filter((p): p is string =>
+      typeof p === "string"
+    );
+    // If no string patterns, use default
+    const finalIncludePatterns = stringIncludePatterns.length > 0
+      ? stringIncludePatterns
+      : ["**/*.scenario.ts"];
+    const discoveredFiles = await discoverScenarioFiles(
+      paths,
+      finalIncludePatterns,
+      stringExcludePatterns,
+    );
+
+    // Load scenarios from discovered files
     const scenarios = await loadScenarios(cwd, {
-      includes: mergedConfig.includes,
+      includes: discoveredFiles as (string | RegExp)[],
       excludes: mergedConfig.excludes,
     });
 
