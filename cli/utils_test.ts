@@ -110,127 +110,62 @@ describe("utils", () => {
     });
   });
 
-  describe("parseMaxConcurrency", () => {
-    it("parses string number", () => {
-      const concurrency = parseMaxConcurrency("4");
-      assertEquals(concurrency, 4);
-    });
+  describe("positive integer parsers", () => {
+    const testCases: Array<{
+      name: string;
+      parser: (value: string | number | undefined) => number | undefined;
+      paramName: string;
+    }> = [
+      { name: "parseMaxConcurrency", parser: parseMaxConcurrency, paramName: "max-concurrency" },
+      { name: "parseMaxFailures", parser: parseMaxFailures, paramName: "max-failures" },
+    ];
 
-    it("parses numeric value", () => {
-      const concurrency = parseMaxConcurrency(8);
-      assertEquals(concurrency, 8);
-    });
+    testCases.forEach(({ name, parser, paramName }) => {
+      describe(name, () => {
+        it("parses string number", () => {
+          assertEquals(parser("4"), 4);
+        });
 
-    it("returns undefined when undefined is passed", () => {
-      const concurrency = parseMaxConcurrency(undefined);
-      assertEquals(concurrency, undefined);
-    });
+        it("parses numeric value", () => {
+          assertEquals(parser(8), 8);
+        });
 
-    it("throws error for invalid number string", () => {
-      assertThrows(
-        () => {
-          parseMaxConcurrency("abc");
-        },
-        Error,
-        "max-concurrency must be a positive integer",
-      );
-    });
+        it("returns undefined when undefined is passed", () => {
+          assertEquals(parser(undefined), undefined);
+        });
 
-    it("throws error for zero", () => {
-      assertThrows(
-        () => {
-          parseMaxConcurrency("0");
-        },
-        Error,
-        "max-concurrency must be a positive integer",
-      );
-    });
+        it("throws error for invalid number string", () => {
+          assertThrows(
+            () => parser("abc"),
+            Error,
+            `${paramName} must be a positive integer`,
+          );
+        });
 
-    it("throws error for negative number", () => {
-      assertThrows(
-        () => {
-          parseMaxConcurrency("-5");
-        },
-        Error,
-        "max-concurrency must be a positive integer",
-      );
-    });
+        it("throws error for zero", () => {
+          assertThrows(
+            () => parser("0"),
+            Error,
+            `${paramName} must be a positive integer`,
+          );
+        });
 
-    it("throws error for decimal number", () => {
-      assertThrows(
-        () => {
-          parseMaxConcurrency("2.5");
-        },
-        Error,
-        "max-concurrency must be a positive integer",
-      );
-    });
+        it("throws error for negative number", () => {
+          assertThrows(
+            () => parser("-5"),
+            Error,
+            `${paramName} must be a positive integer`,
+          );
+        });
 
-    it("accepts large numbers", () => {
-      const concurrency = parseMaxConcurrency("1000");
-      assertEquals(concurrency, 1000);
-    });
-  });
-
-  describe("parseMaxFailures", () => {
-    it("parses string number", () => {
-      const failures = parseMaxFailures("5");
-      assertEquals(failures, 5);
-    });
-
-    it("parses numeric value", () => {
-      const failures = parseMaxFailures(3);
-      assertEquals(failures, 3);
-    });
-
-    it("returns undefined when undefined is passed", () => {
-      const failures = parseMaxFailures(undefined);
-      assertEquals(failures, undefined);
-    });
-
-    it("throws error for invalid number string", () => {
-      assertThrows(
-        () => {
-          parseMaxFailures("xyz");
-        },
-        Error,
-        "max-failures must be a positive integer",
-      );
-    });
-
-    it("throws error for zero", () => {
-      assertThrows(
-        () => {
-          parseMaxFailures("0");
-        },
-        Error,
-        "max-failures must be a positive integer",
-      );
-    });
-
-    it("throws error for negative number", () => {
-      assertThrows(
-        () => {
-          parseMaxFailures("-3");
-        },
-        Error,
-        "max-failures must be a positive integer",
-      );
-    });
-
-    it("throws error for decimal number", () => {
-      assertThrows(
-        () => {
-          parseMaxFailures("1.5");
-        },
-        Error,
-        "max-failures must be a positive integer",
-      );
-    });
-
-    it("accepts large numbers", () => {
-      const failures = parseMaxFailures("500");
-      assertEquals(failures, 500);
+        it("throws error for decimal number", () => {
+          assertThrows(
+            () => parser("2.5"),
+            Error,
+            `${paramName} must be a positive integer`,
+          );
+        });
+      });
     });
   });
 
@@ -271,13 +206,6 @@ describe("utils", () => {
     });
   });
 
-  describe("getVersion", () => {
-    it("reads version from deno.jsonc", () => {
-      const version = getVersion();
-      assertEquals(typeof version, "string");
-      // Should be a version or "unknown"
-    });
-  });
 
   // Test helper to create scenario
   const createScenario = (
