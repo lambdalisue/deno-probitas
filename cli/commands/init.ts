@@ -15,13 +15,7 @@ import {
   readTemplate,
 } from "../utils.ts";
 import { loadConfig } from "../config.ts";
-
-/**
- * Options for the init command
- */
-export interface InitCommandOptions {
-  force?: boolean;
-}
+import { AppConsole, type SubcommandOptions } from "./_utils.ts";
 
 /**
  * Execute the init command
@@ -34,8 +28,9 @@ export interface InitCommandOptions {
  */
 export async function initCommand(
   args: string[],
-  cwd: string,
+  { cwd = Deno.cwd(), output = Deno.stderr.writable }: SubcommandOptions = {},
 ): Promise<number> {
+  await using console = new AppConsole(output);
   try {
     // Parse command-line arguments
     const parsed = parseArgs(args, {
@@ -45,6 +40,7 @@ export async function initCommand(
         f: "force",
       },
     });
+    console.debug("parsed", parsed);
 
     // Show help if requested
     if (parsed.help) {
@@ -58,10 +54,6 @@ export async function initCommand(
         return EXIT_CODE.USAGE_ERROR;
       }
     }
-
-    const options: InitCommandOptions = {
-      force: parsed.force,
-    };
 
     const version = getVersion();
 
@@ -84,7 +76,7 @@ export async function initCommand(
 
       // Check existing probitas configuration
       const existingConfig = await loadConfig(denoConfigPath);
-      if (Object.keys(existingConfig).length > 0 && !options.force) {
+      if (Object.keys(existingConfig).length > 0 && !parsed.force) {
         console.error(
           "probitas configuration already exists in deno.json. Use --force to overwrite.",
         );
@@ -128,7 +120,7 @@ export async function initCommand(
     const examplePath = resolve(scenariosDir, "example.scenario.ts");
     const exampleContent = await readTemplate("example.scenario.ts");
 
-    if (!options.force) {
+    if (!parsed.force) {
       try {
         await Deno.stat(examplePath);
         console.error(

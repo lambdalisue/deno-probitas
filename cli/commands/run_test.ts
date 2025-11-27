@@ -82,10 +82,10 @@ describe("run command", () => {
         output.push(args.join(" "));
       });
 
-      const exitCode = await runCommand([], tempDir);
+      const exitCode = await runCommand([tempDir], tempDir);
 
       // Should return exit code 1 for failure
-      assertEquals(exitCode === 0 || exitCode === 1, true);
+      assertEquals(exitCode, EXIT_CODE.FAILURE);
     });
 
     it("returns exit code 4 when no scenarios found", async () => {
@@ -616,9 +616,9 @@ describe("run command", () => {
           `,
       );
 
-      const exitCode = await runCommand(["--config", projectConfig], tempDir);
+      const exitCode = await runCommand([tempDir, "--config", projectConfig], tempDir);
 
-      assertEquals(exitCode, 0);
+      assertEquals(exitCode, EXIT_CODE.SUCCESS);
     });
 
     it("returns 1 when scenarios fail", async () => {
@@ -652,7 +652,7 @@ describe("run command", () => {
         output.push(args.join(" "));
       });
 
-      const exitCode = await runCommand([], tempDir);
+      const exitCode = await runCommand([tempDir], tempDir);
 
       assertEquals(exitCode, EXIT_CODE.FAILURE);
     });
@@ -678,7 +678,7 @@ export default scenario("Test").step("Test", () => {}).build();`,
       });
 
       const exitCode = await runCommand(
-        ["--max-concurrency", "invalid"],
+        [tempDir, "--max-concurrency", "invalid"],
         tempDir,
       );
 
@@ -822,7 +822,7 @@ export default scenario("Test").step("Test", () => {}).build();`,
         `,
       );
 
-      const exitCode = await runCommand(["--max-failures", "2"], tempDir);
+      const exitCode = await runCommand([tempDir, "--max-failures", "2"], tempDir);
 
       assertEquals(typeof exitCode, "number");
     });
@@ -857,7 +857,7 @@ export default scenario("Test").step("Test", () => {}).build();`,
         output.push(args.join(" "));
       });
 
-      const exitCode = await runCommand(["--max-failures", "invalid"], tempDir);
+      const exitCode = await runCommand([tempDir, "--max-failures", "invalid"], tempDir);
 
       assertEquals(exitCode, EXIT_CODE.USAGE_ERROR);
     });

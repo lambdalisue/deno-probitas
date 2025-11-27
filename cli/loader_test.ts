@@ -7,7 +7,7 @@
  */
 
 import outdent from "outdent";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { resolve } from "@std/path";
 import { defer } from "../src/helper/defer.ts";
@@ -15,7 +15,7 @@ import { loadScenarios } from "./loader.ts";
 
 describe("scenario loader", () => {
   describe("loadScenarios", () => {
-    it("loads scenarios from glob pattern", async () => {
+    it("loads scenarios from file paths", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -36,15 +36,15 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir, {
-        includes: ["**/*.scenario.ts"],
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
       });
 
       assertEquals(scenarios.length, 1);
       assertEquals(scenarios[0].name, "Test Scenario");
     });
 
-    it("loads scenarios from directory with automatic expansion", async () => {
+    it("loads scenarios from multiple file paths", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -67,15 +67,15 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir, {
-        includes: ["scenarios"],
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
       });
 
       assertEquals(scenarios.length, 1);
       assertEquals(scenarios[0].name, "Dir Test Scenario");
     });
 
-    it("applies exclude patterns", async () => {
+    it("handles multiple file paths", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -83,7 +83,7 @@ describe("scenario loader", () => {
 
       // Create multiple scenario files
       const scenario1 = resolve(tempDir, "scenario1.scenario.ts");
-      const scenario2 = resolve(tempDir, "skip_scenario2.scenario.ts");
+      const scenario2 = resolve(tempDir, "scenario2.scenario.ts");
 
       const content1 = outdent`
         export default {
@@ -96,7 +96,7 @@ describe("scenario loader", () => {
 
       const content2 = outdent`
         export default {
-          name: "Skip Scenario 2",
+          name: "Scenario 2",
           options: { tags: [], skip: null, setup: null, teardown: null, stepOptions: {} },
           steps: [],
           location: { file: "${scenario2}" }
@@ -106,16 +106,16 @@ describe("scenario loader", () => {
       await Deno.writeTextFile(scenario1, content1);
       await Deno.writeTextFile(scenario2, content2);
 
-      const scenarios = await loadScenarios(tempDir, {
-        includes: ["**/*.scenario.ts"],
-        excludes: ["**/skip_*"],
+      const scenarios = await loadScenarios([scenario1, scenario2], {
+        onLoadError: () => {},
       });
 
-      assertEquals(scenarios.length, 1);
+      assertEquals(scenarios.length, 2);
       assertEquals(scenarios[0].name, "Scenario 1");
+      assertEquals(scenarios[1].name, "Scenario 2");
     });
 
-    it("supports include regex patterns", async () => {
+    it("loads specific files only", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -138,39 +138,8 @@ describe("scenario loader", () => {
       await Deno.writeTextFile(scenario1, content("API Test", scenario1));
       await Deno.writeTextFile(scenario2, content("DB Test", scenario2));
 
-      const scenarios = await loadScenarios(tempDir, {
-        includes: [/api/],
-      });
-
-      assertEquals(scenarios.length, 1);
-      assertEquals(scenarios[0].name, "API Test");
-    });
-
-    it("supports exclude regex patterns", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
-      });
-
-      const scenario1 = resolve(tempDir, "api.scenario.ts");
-      const scenario2 = resolve(tempDir, "database.scenario.ts");
-
-      const content = (name: string, path: string) =>
-        outdent`
-        export default {
-          name: "${name}",
-          options: { tags: [], skip: null, setup: null, teardown: null, stepOptions: {} },
-          steps: [],
-          location: { file: "${path}" }
-        };
-      `;
-
-      await Deno.writeTextFile(scenario1, content("API Test", scenario1));
-      await Deno.writeTextFile(scenario2, content("DB Test", scenario2));
-
-      const scenarios = await loadScenarios(tempDir, {
-        includes: ["**/*.scenario.ts"],
-        excludes: [/database/],
+      const scenarios = await loadScenarios([scenario1], {
+        onLoadError: () => {},
       });
 
       assertEquals(scenarios.length, 1);
@@ -194,7 +163,9 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir);
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
+      });
 
       assertEquals(scenarios.length, 1);
       assertEquals(scenarios[0].name, "Single Scenario");
@@ -225,14 +196,16 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir);
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
+      });
 
       assertEquals(scenarios.length, 2);
       assertEquals(scenarios[0].name, "Scenario 1");
       assertEquals(scenarios[1].name, "Scenario 2");
     });
 
-    it("throws error when no default export", async () => {
+    it("skips file when no default export", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -248,13 +221,15 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir);
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
+      });
 
       // The loader only loads default exports, so invalid file is skipped
       assertEquals(scenarios.length, 0);
     });
 
-    it("throws error for invalid syntax in scenario file", async () => {
+    it("calls onLoadError for invalid syntax in scenario file", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -264,23 +239,20 @@ describe("scenario loader", () => {
       const invalidContent = "export default { invalid: syntax here";
       await Deno.writeTextFile(scenarioPath, invalidContent);
 
-      await assertRejects(
-        async () => {
-          await loadScenarios(tempDir);
+      let errorCalled = false;
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {
+          errorCalled = true;
         },
-        Error,
-        "Failed to load scenario from",
-      );
-    });
-
-    it("returns empty array when no scenarios match patterns", async () => {
-      const tempDir = await Deno.makeTempDir();
-      await using _cleanup = defer(async () => {
-        await Deno.remove(tempDir, { recursive: true });
       });
 
-      const scenarios = await loadScenarios(tempDir, {
-        includes: ["**/*.nonexistent.ts"],
+      assertEquals(errorCalled, true);
+      assertEquals(scenarios.length, 0);
+    });
+
+    it("returns empty array when no file paths provided", async () => {
+      const scenarios = await loadScenarios([], {
+        onLoadError: () => {},
       });
 
       assertEquals(scenarios.length, 0);
@@ -303,13 +275,15 @@ describe("scenario loader", () => {
       `;
       await Deno.writeTextFile(scenarioPath, content);
 
-      const scenarios = await loadScenarios(tempDir);
+      const scenarios = await loadScenarios([scenarioPath], {
+        onLoadError: () => {},
+      });
 
       assertEquals(scenarios.length, 1);
       assertEquals(scenarios[0].options.tags, ["smoke", "critical"]);
     });
 
-    it("handles multiple files with glob pattern", async () => {
+    it("handles multiple files", async () => {
       const tempDir = await Deno.makeTempDir();
       await using _cleanup = defer(async () => {
         await Deno.remove(tempDir, { recursive: true });
@@ -332,7 +306,9 @@ describe("scenario loader", () => {
       await Deno.writeTextFile(scenario1, createContent("Test 1", scenario1));
       await Deno.writeTextFile(scenario2, createContent("Test 2", scenario2));
 
-      const scenarios = await loadScenarios(tempDir);
+      const scenarios = await loadScenarios([scenario1, scenario2], {
+        onLoadError: () => {},
+      });
 
       assertEquals(scenarios.length, 2);
     });

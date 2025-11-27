@@ -11,9 +11,9 @@ import outdent from "outdent";
 import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { resolve } from "@std/path";
-import { defer } from "../src/helper/defer.ts";
+import { defer } from "../../src/helper/defer.ts";
 
-describe("runner_subprocess", () => {
+describe("runner", () => {
   it("executes scenarios and returns exit code 0 on success", async () => {
     const tempDir = await Deno.makeTempDir();
     await using _cleanup = defer(async () => {
@@ -53,7 +53,7 @@ describe("runner_subprocess", () => {
 
     // Run subprocess
     const subprocessPath = new URL(
-      "./runner_subprocess.ts",
+      "./runner.ts",
       import.meta.url,
     ).pathname;
 
@@ -126,7 +126,7 @@ describe("runner_subprocess", () => {
 
     // Run subprocess
     const subprocessPath = new URL(
-      "./runner_subprocess.ts",
+      "./runner.ts",
       import.meta.url,
     ).pathname;
 
@@ -165,7 +165,7 @@ describe("runner_subprocess", () => {
 
     // Run subprocess
     const subprocessPath = new URL(
-      "./runner_subprocess.ts",
+      "./runner.ts",
       import.meta.url,
     ).pathname;
 
@@ -190,7 +190,7 @@ describe("runner_subprocess", () => {
       child.stderr.arrayBuffer(),
     ]);
 
-    assertEquals(result.code, 1);
+    assertEquals(result.code, 4);
   });
 
   it("applies selectors correctly", async () => {
@@ -251,7 +251,7 @@ describe("runner_subprocess", () => {
 
     // Run subprocess
     const subprocessPath = new URL(
-      "./runner_subprocess.ts",
+      "./runner.ts",
       import.meta.url,
     ).pathname;
 

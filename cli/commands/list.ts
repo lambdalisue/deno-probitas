@@ -4,13 +4,13 @@
  * @module
  */
 
+import { is, maybe } from "@core/unknownutil";
 import { parseArgs } from "@std/cli";
 import { resolve } from "@std/path";
 import type { ScenarioDefinition } from "../../src/runner/types.ts";
 import { EXIT_CODE } from "../constants.ts";
 import { loadConfig } from "../config.ts";
 import { loadScenarios } from "../loader.ts";
-import type { ProbitasConfig } from "../types.ts";
 import {
   applySelectors,
   discoverScenarioFiles,
@@ -18,16 +18,7 @@ import {
   readAsset,
 } from "../utils.ts";
 
-/**
- * Options for the list command
- */
-export interface ListCommandOptions {
-  includes?: string[];
-  excludes?: string[];
-  selectors?: string[];
-  json?: boolean;
-  config?: string;
-}
+const isStringArray = is.ArrayOf(is.String);
 
 /**
  * Execute the list command
@@ -52,12 +43,8 @@ export async function listCommand(
         h: "help",
         s: "selector",
       },
-      default: {
-        selector: [],
-        include: [],
-        exclude: [],
-      },
     });
+    console.debug(`parsed: ${JSON.stringify(parsed, null, 2)}`);
 
     // Show help if requested
     if (parsed.help) {
@@ -72,75 +59,56 @@ export async function listCommand(
       }
     }
 
-    // Priority: CLI args > env vars > defaults
-    const options: ListCommandOptions = {
-      includes: parsed.include as string[],
-      excludes: parsed.exclude as string[],
-      selectors: parsed.selector as string[],
-      json: parsed.json,
-      config: parsed.config,
-    };
-
-    // Determine config file path (priority: --config > env > auto search)
-    const configPath =
-      (options.config ? resolve(cwd, options.config) : undefined) ??
-        (Deno.env.get("PROBITAS_CONFIG")
-          ? resolve(cwd, Deno.env.get("PROBITAS_CONFIG")!)
-          : undefined) ??
-        findDenoConfigFile(cwd);
-
     // Load configuration
-    let mergedConfig: ProbitasConfig = {};
-    if (configPath) {
-      mergedConfig = await loadConfig(configPath);
-    }
+    const configPath = parsed.config ??
+      Deno.env.get("PROBITAS_CONFIG") ??
+      findDenoConfigFile(cwd);
+    console.debug(`configPath: ${configPath}`);
+    const config = configPath ? await loadConfig(configPath) : null;
+    console.debug(`config: ${JSON.stringify(config, null, 2)}`);
 
     // Merge include/exclude patterns with priority: CLI > config > defaults
-    const includePatterns = options.includes?.length
-      ? options.includes
-      : mergedConfig.includes ?? ["**/*.scenario.ts"];
-    const excludePatterns = options.excludes?.length
-      ? options.excludes
-      : mergedConfig.excludes ?? ["**/node_modules/**", "**/.git/**"];
+    const includes = maybe(parsed.include, isStringArray) ??
+      config?.includes ??
+      ["**/*.scenario.ts"];
+    console.debug(`includes: ${includes}`);
+    const excludes = maybe(parsed.exclude, isStringArray) ??
+      config?.excludes ??
+      ["**/node_modules/**", "**/.git/**"];
+    console.debug(`excludes: ${excludes}`);
 
-    // Prepare paths (default to current directory if empty)
-    const files = parsed._ as string[];
-    const relativePaths = files.length === 0 ? ["."] : files;
-    // Resolve paths relative to cwd
-    const paths = relativePaths.map((p) => resolve(cwd, p));
-
-    // Discover scenario files (filter to string patterns only)
-    const stringIncludePatterns = includePatterns.filter((p): p is string =>
-      typeof p === "string"
-    );
-    const stringExcludePatterns = excludePatterns.filter((p): p is string =>
-      typeof p === "string"
-    );
-    // If no string patterns, use default
-    const finalIncludePatterns = stringIncludePatterns.length > 0
-      ? stringIncludePatterns
-      : ["**/*.scenario.ts"];
+    // Discover scenario files
+    const paths = (parsed._.length > 0 ? parsed._ : ["."])
+      .filter(is.String)
+      .map((v) => resolve(cwd, v));
+    console.debug(`paths: ${paths}`);
     const discoveredFiles = await discoverScenarioFiles(
       paths,
-      finalIncludePatterns,
-      stringExcludePatterns,
+      includes,
+      excludes,
     );
+    console.debug(`Discovered scenario files: ${discoveredFiles}`);
 
     // Load scenarios from discovered files
-    const scenarios = await loadScenarios(cwd, {
-      includes: discoveredFiles as (string | RegExp)[],
-      excludes: mergedConfig.excludes,
+    const scenarios = await loadScenarios(discoveredFiles, {
+      onLoadError: (path, err) => {
+        console.warn(`Failed to load scenario file "${path}": ${err}`);
+      },
     });
 
-    // Apply selectors to filter scenarios
-    const selectors = options.selectors && options.selectors.length > 0
-      ? options.selectors
-      : mergedConfig.selectors || [];
+    // Merge selectors with priority: CLI > config > defaults
+    const selectors = maybe(parsed.selector, isStringArray) ??
+      config?.selectors ??
+      [];
 
-    const filteredScenarios = applySelectors(scenarios, selectors);
+    // Apply selectors to filter scenarios
+    const filteredScenarios = applySelectors(
+      scenarios,
+      selectors,
+    );
 
     // Output results
-    if (options.json) {
+    if (parsed.json) {
       outputJson(filteredScenarios);
     } else {
       outputText(scenarios, filteredScenarios);
@@ -178,17 +146,18 @@ function outputText(
   // Output grouped scenarios
   let outputCount = 0;
   for (const [file, scenariosInFile] of byFile) {
-    console.log(file);
+    console.info(file);
     for (const scenario of scenariosInFile) {
       if (filteredScenarios.includes(scenario)) {
-        console.log(`  ${scenario.name}`);
+        console.info(`  ${scenario.name}`);
         outputCount++;
       }
     }
+    console.info();
   }
 
-  console.log(
-    `\nTotal: ${outputCount} scenario${
+  console.info(
+    `Total: ${outputCount} scenario${
       outputCount === 1 ? "" : "s"
     } in ${byFile.size} file${byFile.size === 1 ? "" : "s"}`,
   );
@@ -207,5 +176,5 @@ function outputJson(scenarios: ScenarioDefinition[]): void {
     file: scenario.location?.file || "unknown",
   }));
 
-  console.log(JSON.stringify(output, null, 2));
+  console.info(JSON.stringify(output, null, 2));
 }

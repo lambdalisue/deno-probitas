@@ -49,19 +49,18 @@ export class ConsoleSuppressor implements Disposable {
   constructor(verbosity: Verbosity = "normal") {
     switch (verbosity) {
       case "quiet":
-        // Suppress warn, log, info, debug (keep error)
-        console.warn =
+        // Suppress log, info, debug (keep error, warn)
+        console.info =
           console.log =
-          console.info =
           console.debug =
             () => {};
         break;
       case "normal":
-        // Suppress log, info, debug (keep error, warn)
-        console.log = console.info = console.debug = () => {};
+        // Suppress log, info, debug (keep error, warn, info)
+        console.log = console.debug = () => {};
         break;
       case "verbose":
-        // Suppress debug only (keep error, warn, log, info)
+        // Suppress debug only (keep error, warn, info, log)
         console.debug = () => {};
         break;
       case "debug":
